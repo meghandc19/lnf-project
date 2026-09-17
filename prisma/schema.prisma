@@ -1,0 +1,346 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  RESTRICTED
+  BANNED
+  DELETED
+}
+
+enum ItemType {
+  LOST
+  FOUND
+}
+
+enum ItemStatus {
+  ACTIVE
+  MATCHED
+  CLAIMED
+  RETURNED
+  CLOSED
+  REMOVED
+}
+
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum MatchStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum NotificationType {
+  MATCH
+  CLAIM
+  MESSAGE
+  SYSTEM
+  MODERATION
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  FLAGGED
+  BLOCKED
+}
+
+model User {
+  id        String  @id @default(cuid())
+  name      String
+  email     String  @unique
+  emailVerified Boolean @default(false)
+  image     String?
+
+  username       String  @unique
+  displayUsername String?
+
+  phoneNumber         String?  @unique
+  phoneNumberVerified Boolean  @default(false)
+
+  role   UserRole   @default(USER)
+  status UserStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  lostItems                LostItem[]
+  foundItems               FoundItem[]
+  claims                   Claim[]
+  sentMessages             Message[]
+  notifications            Notification[]
+  auditLogs                AuditLog[] @relation("ActorAuditLogs")
+  moderationEvents         ModerationEvent[]
+  conversationParticipants ConversationParticipant[]
+
+  sessions Session[]
+  accounts Account[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+model Category {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lostItems  LostItem[]
+  foundItems FoundItem[]
+}
+
+model LostItem {
+  id          String     @id @default(cuid())
+  userId      String
+  categoryId  String
+
+  title       String
+  description String
+  location    String
+  lostAt      DateTime
+
+  status      ItemStatus       @default(ACTIVE)
+  moderation  ModerationStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  user     User     @relation(fields: [userId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+
+  images       ItemImage[]
+  matches      Match[]
+  claims       Claim[]
+}
+
+model FoundItem {
+  id          String     @id @default(cuid())
+  userId      String
+  categoryId  String
+
+  title       String
+  description String
+  location    String
+  foundAt     DateTime
+
+  status      ItemStatus       @default(ACTIVE)
+  moderation  ModerationStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  user     User     @relation(fields: [userId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+
+  images       ItemImage[]
+  matches      Match[]
+  claims       Claim[]
+}
+
+model ItemImage {
+  id         String @id @default(cuid())
+  url        String
+  storageKey String
+  mimeType   String
+  sizeBytes  Int
+
+  lostItemId  String?
+  foundItemId String?
+
+  createdAt DateTime @default(now())
+
+  lostItem  LostItem?  @relation(fields: [lostItemId], references: [id])
+  foundItem FoundItem? @relation(fields: [foundItemId], references: [id])
+}
+
+model Match {
+  id          String      @id @default(cuid())
+  lostItemId  String
+  foundItemId String
+
+  score       Float
+  reason      String?
+  status      MatchStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lostItem  LostItem  @relation(fields: [lostItemId], references: [id])
+  foundItem FoundItem @relation(fields: [foundItemId], references: [id])
+
+  @@unique([lostItemId, foundItemId])
+  @@index([score])
+}
+
+model Claim {
+  id          String      @id @default(cuid())
+  userId      String
+  lostItemId  String?
+  foundItemId String?
+
+  status      ClaimStatus @default(PENDING)
+  message     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id])
+  lostItem  LostItem?  @relation(fields: [lostItemId], references: [id])
+  foundItem FoundItem? @relation(fields: [foundItemId], references: [id])
+}
+
+model ChatConversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String @id @default(cuid())
+  conversationId String
+  userId         String
+
+  joinedAt DateTime @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id])
+  user         User             @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  senderId       String
+
+  content String
+  type    MessageType @default(TEXT)
+
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id])
+  sender       User             @relation(fields: [senderId], references: [id])
+}
+
+model Notification {
+  id     String           @id @default(cuid())
+  userId String
+  type   NotificationType
+
+  title   String
+  message String
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model ModerationEvent {
+  id     String @id @default(cuid())
+  userId String?
+
+  entityType String
+  entityId   String
+
+  status   ModerationStatus
+  score    Float?
+  reason   String?
+
+  reviewedBy String?
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entityType String
+  entityId  String?
+  details   Json?
+
+  createdAt DateTime @default(now())
+
+  actor User? @relation("ActorAuditLogs", fields: [actorId], references: [id])
+}
