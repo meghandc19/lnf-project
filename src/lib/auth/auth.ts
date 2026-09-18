@@ -17,9 +17,20 @@ export const auth = betterAuth({
 
     phoneNumber({
       sendOTP: async ({ phoneNumber, code }) => {
-        // Development only.
-        // We will connect a real SMS provider later.
         console.log(`OTP for ${phoneNumber}: ${code}`);
+      },
+
+      requireVerification: true,
+
+      signUpOnVerification: {
+        getTempEmail: (phoneNumber) => {
+          const digits = phoneNumber.replace(/\D/g, "");
+          return `${digits}@phone.lnf.local`;
+        },
+
+        getTempName: (phoneNumber) => {
+          return phoneNumber;
+        },
       },
     }),
   ],
