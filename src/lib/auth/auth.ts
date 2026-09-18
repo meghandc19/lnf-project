@@ -12,8 +12,30 @@ export const auth = betterAuth({
     enabled: true,
   },
 
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        input: false,
+        defaultValue: "USER",
+      },
+
+      status: {
+        type: "string",
+        input: false,
+        defaultValue: "ACTIVE",
+      },
+    },
+  },
+
   plugins: [
-    username(),
+    username({
+      minUsernameLength: 3,
+      maxUsernameLength: 30,
+      usernameValidator: (username) => {
+        return /^[a-zA-Z0-9_.]+$/.test(username);
+      },
+    }),
 
     phoneNumber({
       sendOTP: async ({ phoneNumber, code }) => {
