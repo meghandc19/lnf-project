@@ -344,3 +344,16 @@ model AuditLog {
 
   actor User? @relation("ActorAuditLogs", fields: [actorId], references: [id])
 }
+
+model UserDeletionRecord {
+  id             String   @id @default(cuid())
+  originalUserId String
+  name           String
+  username       String
+  reason         String
+  deletedBy      String
+  deletedAt      DateTime @default(now())
+
+  @@index([originalUserId])
+  @@index([deletedBy])
+}
