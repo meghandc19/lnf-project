@@ -78,8 +78,9 @@ model User {
   username       String  @unique
   displayUsername String?
 
-  phoneNumber         String?  @unique
-  phoneNumberVerified Boolean  @default(false)
+  phoneNumber         String?   @unique
+  phoneNumberVerified Boolean   @default(false)
+  phoneVerifiedAt     DateTime?
 
   role   UserRole   @default(USER)
   status UserStatus @default(ACTIVE)
