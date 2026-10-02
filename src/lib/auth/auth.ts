@@ -13,10 +13,23 @@ export const auth = betterAuth({
   }),
 
   baseURL: process.env.BETTER_AUTH_URL,
+  
+  trustedOrigins: [
+    "http://localhost:3000",
+  ],
 
   account: {
     encryptOAuthTokens: true,
   },
+
+  emailAndPassword: {
+    enabled: true,
+  },
+
+  disabledPaths: [
+    "/sign-up/email",
+    "/sign-in/email",
+  ],
 
   socialProviders:
     googleClientId && googleClientSecret
@@ -50,10 +63,6 @@ export const auth = betterAuth({
           },
         }
       : {},
-
-  emailAndPassword: {
-    enabled: true,
-  },
 
   user: {
     additionalFields: {

@@ -1,7 +1,10 @@
 import type { UserStatus } from "@/generated/prisma/client";
 
 export function canBrowse(status: UserStatus) {
-  return status === "ACTIVE" || status === "RESTRICTED";
+  return (
+    status === "ACTIVE" ||
+    status === "RESTRICTED"
+  );
 }
 
 export function hasVerifiedPhone(
@@ -16,7 +19,7 @@ export function canCreateReport(
 ) {
   return (
     status === "ACTIVE" &&
-    phoneNumberVerified
+    phoneNumberVerified === true
   );
 }
 
@@ -26,7 +29,7 @@ export function canMessage(
 ) {
   return (
     status === "ACTIVE" &&
-    phoneNumberVerified
+    phoneNumberVerified === true
   );
 }
 
@@ -36,6 +39,12 @@ export function canClaim(
 ) {
   return (
     status === "ACTIVE" &&
-    phoneNumberVerified
+    phoneNumberVerified === true
   );
+}
+
+export function canChangePhone(
+  status: UserStatus,
+) {
+  return status === "ACTIVE";
 }
