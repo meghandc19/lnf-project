@@ -96,6 +96,10 @@ export const auth = betterAuth({
         console.log(`OTP for ${phoneNumber}: ${code}`);
       },
 
+      phoneNumberValidator: (phoneNumber) => {
+        const cleaned = phoneNumber.replace(/\s+/g, "");
+        return /^(?:\+?91)?[6-9]\d{9}$/.test(cleaned);
+      },
       requireVerification: true,
 
       otpLength: 6,

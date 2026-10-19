@@ -75,7 +75,7 @@ model User {
   emailVerified Boolean @default(false)
   image     String?
 
-  username       String  @unique
+  username       String? @unique
   displayUsername String?
 
   phoneNumber         String?   @unique
@@ -356,7 +356,7 @@ model UserDeletionRecord {
   id             String   @id @default(cuid())
   originalUserId String
   name           String
-  username       String
+  username       String?
   reason         String
   deletedBy      String
   deletedAt      DateTime @default(now())

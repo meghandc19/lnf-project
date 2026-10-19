@@ -2,8 +2,12 @@
 
 import { FormEvent, useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import {
+  indianPhoneSchema,
+  normalizeIndianPhone,
+} from "@/lib/validation/common";
 
-type LoginMethod = "username" | "email" | "phone";
+type LoginMethod = "username" | "phone";
 
 export default function LoginPage() {
   const [method, setMethod] =
@@ -50,29 +54,20 @@ export default function LoginPage() {
         );
       }
 
-      if (method === "email") {
-        await authClient.signIn.email(
-          {
-            email: identifier.trim(),
-            password,
-            rememberMe: true,
-          },
-          {
-            onSuccess: () => {
-              window.location.href = "/dashboard";
-            },
-            onError: (ctx) => {
-              setMessage(ctx.error.message);
-              setLoading(false);
-            },
-          },
-        );
-      }
-
       if (method === "phone") {
+        const validation = indianPhoneSchema.safeParse(identifier);
+
+        if (!validation.success) {
+          setMessage("Enter a valid 10-digit Indian mobile number.");
+          setLoading(false);
+          return;
+        }
+
+        const normalizedPhone = normalizeIndianPhone(identifier);
+
         await authClient.signIn.phoneNumber(
           {
-            phoneNumber: identifier.trim(),
+            phoneNumber: normalizedPhone,
             password,
             rememberMe: true,
           },
@@ -124,21 +119,13 @@ export default function LoginPage() {
         </div>
 
         {/* Login method */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => changeMethod("username")}
             className="rounded-xl border px-3 py-2"
           >
             Username
-          </button>
-
-          <button
-            type="button"
-            onClick={() => changeMethod("email")}
-            className="rounded-xl border px-3 py-2"
-          >
-            Email
           </button>
 
           <button
@@ -156,17 +143,11 @@ export default function LoginPage() {
           className="space-y-4"
         >
           <input
-            type={
-              method === "email"
-                ? "email"
-                : "text"
-            }
+            type="text"
             placeholder={
               method === "username"
                 ? "Username"
-                : method === "email"
-                  ? "Email address"
-                  : "Phone number"
+                : "Phone number"
             }
             value={identifier}
             onChange={(event) =>
@@ -174,11 +155,9 @@ export default function LoginPage() {
             }
             required
             autoComplete={
-              method === "email"
-                ? "email"
-                : method === "phone"
-                  ? "tel"
-                  : "username"
+              method === "phone"
+                ? "tel"
+                : "username"
             }
             className="w-full rounded-xl border p-3"
           />

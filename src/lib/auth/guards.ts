@@ -56,7 +56,7 @@ export async function requirePhoneVerified() {
 }
 
 export async function requireAdmin() {
-  const user = await requireLogin();
+  const user = await requireActiveUser();
 
   if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
     throw forbidden();
@@ -66,7 +66,7 @@ export async function requireAdmin() {
 }
 
 export async function requireSuperAdmin() {
-  const user = await requireLogin();
+  const user = await requireActiveUser();
 
   if (user.role !== "SUPER_ADMIN") {
     throw forbidden();
