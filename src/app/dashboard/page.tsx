@@ -14,11 +14,17 @@ export default async function DashboardPage() {
   } catch {
     redirect("/login");
   }
-  const [lostCount, foundCount] = await Promise.all([
+  const [lostCount, foundCount, lostReports, foundReports] = await Promise.all([
     prisma.lostItem.count({ where: { userId: user.id, deletedAt: null } }),
     prisma.foundItem.count({ where: { userId: user.id, deletedAt: null } }),
+    prisma.lostItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 6, include: { images: true, category: true } }),
+    prisma.foundItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 6, include: { images: true, category: true } }),
   ]);
   const memberMonths = Math.max(1, (new Date().getFullYear() - user.createdAt.getFullYear()) * 12 + new Date().getMonth() - user.createdAt.getMonth());
+  const reports = [
+    ...lostReports.map((report) => ({ ...report, type: "LOST" as const, occurredAt: report.lostAt })),
+    ...foundReports.map((report) => ({ ...report, type: "FOUND" as const, occurredAt: report.foundAt })),
+  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   return (
     <div className="site-page">
@@ -48,10 +54,20 @@ export default async function DashboardPage() {
           <article><span>Found reports</span><strong>{foundCount}</strong><small>created by you</small></article>
           <article><span>Member for</span><strong>{memberMonths}</strong><small>{memberMonths === 1 ? "month" : "months"}</small></article>
         </section>
-        <div className="dashboard-history-note"><strong>Helping return items</strong><p>Completed handovers and items you helped reunite will appear here when reporting and claim features are connected. No history is being estimated.</p></div>
+        <div className="dashboard-history-note"><strong>Report review</strong><p>New reports are private to you while pending review. Approved reports are visible on the community search page.</p></div>
+        <section className="dashboard-reports" aria-labelledby="dashboard-reports-title">
+          <div className="dashboard-section-heading"><div><p className="eyebrow">Your history</p><h2 id="dashboard-reports-title">Your reports</h2></div><div className="button-row"><Link className="button button-outline" href="/report/lost">Report lost</Link><Link className="button button-primary" href="/report/found">Report found</Link></div></div>
+          {reports.length ? (
+            <div className="dashboard-report-list">{reports.map((report) => <article className="dashboard-report-card" key={`${report.type}-${report.id}`}>
+              {report.images[0] ? <Image className="dashboard-report-image" src={report.images[0].url} width={120} height={100} alt="" unoptimized /> : <div className="dashboard-report-image dashboard-report-placeholder" aria-hidden="true">✳</div>}
+              <div className="dashboard-report-copy"><span className={`report-kind ${report.type === "LOST" ? "report-kind-lost" : "report-kind-found"}`}>{report.type === "LOST" ? "Lost" : "Found"}</span><h3>{report.title}</h3><p>{report.category.name} · {report.location}</p><small>{report.occurredAt.toLocaleDateString()}</small></div>
+              <span className={`report-review-status report-status-${report.moderation.toLowerCase()}`}>{report.moderation === "APPROVED" ? "Approved" : report.moderation === "FLAGGED" ? "Under review" : report.moderation === "BLOCKED" ? "Not published" : "Pending review"}</span>
+            </article>)}</div>
+          ) : <div className="empty-state dashboard-empty"><p className="eyebrow">No reports yet</p><h2>Your lost and found reports will appear here.</h2><p>Submitted reports stay connected to your account, including after you sign out and back in.</p></div>}
+        </section>
         <div className="dashboard-grid">
           {[
-            ["Your reports", "Item report management is not available yet."],
+            ["Report management", "Your latest reports appear above. Editing and closing reports are not available yet."],
             ["Potential matches", "Matching is not available until item reports are connected."],
             ["Claims", "Claim and handover workflows are still in development."],
             ["Notifications", "There are no notification features connected yet."],

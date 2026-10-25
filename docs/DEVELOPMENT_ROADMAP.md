@@ -20,22 +20,26 @@ Phase 1 verification note: unit tests cover the fixed-window limiter, access pol
 - [x] Navbar
 - [x] Login page
 - [x] Signup page UI (opt-in local terminal OTP; no SMS provider)
-- [x] Profile editor (display name, about, photo URL; image upload pending)
+- [x] Profile editor (display name, about, local photo upload, OTP-verified phone replacement)
 - [x] Dashboard page (basic authenticated shell)
 - [x] Responsive mobile-first landing page and account navigation (physical browser/device review remains)
 
-Phase 2 note: `/items` and report routes show honest empty/coming-soon states because item CRUD/search APIs and secure upload storage do not exist. The home page has direct report-lost, report-found, and search actions. Profile edits are persisted through a guarded API; the about field is added by a nullable Prisma migration. Dashboard reports only real account age and database counts. Physical-device review and item history remain pending.
+Phase 2 note: Home and navigation are responsive. Profile edits persist through guarded APIs; profile photo upload is available locally. Report creation, owner history, and approved-report search are implemented in Phase 3. Physical-device review remains pending.
 
 Authentication UI note: signup now presents Google OAuth and phone OTP options; Google signups must verify a phone on `/register/complete`. Live Google OAuth and real SMS remain unverified.
 
+Account setup note: phone signup chooses an available immutable username after OTP. New Google signups choose an available immutable username before phone verification. Profile photo uploads accept small valid JPEG/PNG/WebP files up to 8 MB; profile image URL entry is not shown in the editor.
+
 ## Phase 3 - Lost & Found
-- [ ] Lost item API
-- [ ] Found item API
-- [ ] Create/edit/remove
-- [ ] Search
+- [x] Lost and found report creation APIs
+- [ ] Create/edit/remove (creation implemented; edit/remove pending)
+- [x] Search approved public reports by title, description, category, and location
 - [ ] Filters
 - [ ] Item details
-- [ ] Image upload
+- [x] JPEG/PNG/WebP image upload for reports (local filesystem only)
+- [x] Owner dashboard report history and moderation status
+- [ ] Moderation review/approval interface (pending reports remain private)
+- [ ] Durable object storage for deployment
 
 ## Phase 4 - Matching
 - [ ] Matching algorithm

@@ -30,7 +30,7 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
       });
       const result = await response.json();
       if (!response.ok) {
-        setMessage(result.error ?? "Could not prepare a code. Please try again.");
+        setMessage(result.message ?? result.error ?? "Could not prepare a code. Please try again.");
         return;
       }
       setPhone(normalizedPhone);
@@ -55,7 +55,7 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
       });
       const result = await response.json();
       if (!response.ok) {
-        setMessage(result.error ?? "That code is invalid or expired. Check the terminal and try again.");
+        setMessage(result.message ?? result.error ?? "That code is invalid or expired. Check the terminal and try again.");
         return;
       }
       router.replace("/");

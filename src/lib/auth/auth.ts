@@ -4,7 +4,6 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { phoneNumber, username } from "better-auth/plugins";
 import { prisma } from "@/lib/prisma";
 import { deliverPhoneOtp } from "@/lib/auth/sms";
-import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -84,27 +83,7 @@ export const auth = betterAuth({
             clientSecret: googleClientSecret,
             prompt: "select_account",
 
-            mapProfileToUser: (profile) => {
-              const email =
-                typeof profile.email === "string"
-                  ? profile.email.toLowerCase()
-                  : "";
-
-              const base =
-                email
-                  .split("@")[0]
-                  .replace(/[^a-z0-9_.]/g, "")
-                  .slice(0, 18) || "user";
-
-              const suffix = createHash("sha256")
-                .update(email)
-                .digest("hex")
-                .slice(0, 6);
-
-              return {
-                username: `${base}_${suffix}`.slice(0, 30),
-              };
-            },
+            mapProfileToUser: () => ({}),
           },
         }
       : {},

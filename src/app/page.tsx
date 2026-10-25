@@ -44,7 +44,7 @@ export default async function Home() {
             </div>
             <div className="hero-word-line" aria-label="Lost. Found. Back together.">
               <span className="hero-word-static">Every lost thing deserves a way back.</span>
-              <span className="hero-word-rotator" aria-hidden="true"><span>Lost.</span><span>Found.</span><span>Back together.</span></span>
+              <span className="hero-word-lens" aria-hidden="true"><span className="hero-word-rotator"><span>Lost.</span><span>Found.</span><span>Back together.</span></span></span>
             </div>
           </div>
           <div className="hero-caption" aria-hidden="true"><span className="caption-symbol">✳</span><span>Look out for each other.<br /><strong>Bring a little good home.</strong></span></div>
@@ -65,7 +65,7 @@ export default async function Home() {
               </Link>
             ))}
           </div>
-          <p className="quick-actions-note"><span aria-hidden="true">●</span> REVOK is still getting its reporting and search tools ready. These links explain what’s coming; they don’t submit or search real reports yet.</p>
+          <p className="quick-actions-note"><span aria-hidden="true">●</span> Lost and found reports can now be saved to your account. Public browsing shows reports after review.</p>
         </section>
 
         <section className="intro-section page-width" aria-labelledby="intro-title">
@@ -81,14 +81,14 @@ export default async function Home() {
 
         <section className="availability-band" aria-label="Current availability">
           <div className="availability-icon" aria-hidden="true">i</div>
-          <div><strong>We’re building the essentials.</strong><p>There are no item reports in the app yet. We’ll show real community posts when reporting and search are connected.</p></div>
+          <div><strong>Reports stay connected to your account.</strong><p>Submit a lost or found report and follow its review status from your dashboard. Approved reports can be browsed by the community.</p></div>
           <Link href="/how-it-works" className="text-link">The process <span aria-hidden="true">→</span></Link>
         </section>
 
         <section className="steps-section page-width" aria-labelledby="steps-title">
           <div className="section-heading-row">
             <div><p className="eyebrow">Clear, careful, community-led</p><h2 id="steps-title">A simple path back.</h2></div>
-            <p>Real reporting, search, and matching are still in development. The steps below show the experience we’re working toward.</p>
+            <p>Reports are saved to member accounts and reviewed before they appear in public browsing. Matching and handovers are still in development.</p>
           </div>
           <div className="steps-grid">
             <article className="step-card"><span className="step-number">01</span><div className="step-rule"/><h3>Share what’s missing</h3><p>A helpful report will give your community enough detail to recognize an item.</p></article>

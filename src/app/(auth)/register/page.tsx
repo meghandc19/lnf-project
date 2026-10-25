@@ -20,6 +20,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [usernameAvailability, setUsernameAvailability] = useState("");
 
   async function signUpWithGoogle() {
     setMessage("");
@@ -100,6 +101,26 @@ export default function RegisterPage() {
     }
   }
 
+  async function checkUsernameAvailability() {
+    const candidate = username.trim();
+    if (!candidate) {
+      setUsernameAvailability("");
+      return;
+    }
+    if (!/^[a-zA-Z0-9_.]{3,30}$/.test(candidate)) {
+      setUsernameAvailability("Use 3–30 letters, numbers, underscores, or periods.");
+      return;
+    }
+    setUsernameAvailability("Checking availability…");
+    try {
+      const response = await fetch(`/api/account/username?username=${encodeURIComponent(candidate)}`);
+      const result = await response.json();
+      setUsernameAvailability(result.message ?? (result.available ? "Username available." : "That username is already taken."));
+    } catch {
+      setUsernameAvailability("Could not check right now. We’ll still check when you create the account.");
+    }
+  }
+
   return (
     <main className="auth-page">
       <aside className="auth-aside">
@@ -150,8 +171,10 @@ export default function RegisterPage() {
                 <input id="register-name" type="text" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" required />
               </label>
               <label className="auth-field" htmlFor="register-username">Username
-                <input id="register-username" type="text" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Choose a username" required />
+                <input id="register-username" type="text" autoComplete="username" minLength={3} maxLength={30} value={username} onChange={(event) => { setUsername(event.target.value); setUsernameAvailability(""); }} onBlur={checkUsernameAvailability} placeholder="Choose a username" required />
               </label>
+              <p className="auth-help username-lock-note">Check that your username is available. You can’t change it after account creation.</p>
+              {usernameAvailability && <p className="username-availability" role="status">{usernameAvailability}</p>}
               <label className="auth-field" htmlFor="register-password">Password
                 <input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" minLength={8} required />
               </label>

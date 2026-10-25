@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth/auth";
 import { requireActiveUser } from "@/lib/auth/guards";
+import { prisma } from "@/lib/prisma";
+import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 import { handleApiError } from "@/lib/api/handle-error";
 import {
   checkRateLimit,
@@ -10,15 +12,7 @@ import {
   rateLimitResponse,
 } from "@/lib/security/rate-limit";
 
-const phoneSchema = z.object({
-  phoneNumber: z
-    .string()
-    .trim()
-    .regex(
-      /^\+[1-9]\d{7,14}$/,
-      "Use international format, for example +919876543210.",
-    ),
-});
+const phoneSchema = z.object({ phoneNumber: indianPhoneSchema });
 
 export async function POST(request: Request) {
   let user;
@@ -44,14 +38,15 @@ export async function POST(request: Request) {
   if (!result.success) {
     return NextResponse.json(
       {
-        error: "Invalid phone number.",
-        details: result.error.flatten(),
+        error: "INVALID_PHONE_NUMBER",
+        message: "Enter a valid 10-digit Indian mobile number.",
       },
       { status: 400 },
     );
   }
 
-  const phoneNumber = result.data.phoneNumber;
+  // Match the national-format value used by Better Auth's phone signup and login.
+  const phoneNumber = normalizeIndianPhone(result.data.phoneNumber);
 
   const phoneLimit = checkRateLimit(
     hashRateLimitKey("account-send-otp-phone", phoneNumber),
@@ -67,13 +62,40 @@ export async function POST(request: Request) {
   );
   if (!userLimit.allowed) return rateLimitResponse(userLimit.retryAfterMs);
 
-  if (
-    user.phoneNumber === phoneNumber &&
-    user.phoneNumberVerified
-  ) {
+  const phoneVariants = [phoneNumber, `+91${phoneNumber}`];
+  if (user.phoneNumberVerified && phoneVariants.includes(user.phoneNumber ?? "")) {
     return NextResponse.json(
-      { error: "This phone number is already verified." },
+      { error: "PHONE_ALREADY_VERIFIED", message: "This phone number is already verified on your account. Continue to REVOK." },
       { status: 400 },
+    );
+  }
+
+  let linkedAccount;
+  try {
+    linkedAccount = await prisma.user.findFirst({
+      where: { phoneNumber: { in: phoneVariants }, id: { not: user.id } },
+      select: { id: true },
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+  if (linkedAccount) {
+    return NextResponse.json(
+      {
+        error: "PHONE_NUMBER_IN_USE",
+        message: "This number is already linked to another REVOK account. Sign in to that existing account with its phone and password, or use the Google account already connected to it. A phone number can’t be linked to two accounts.",
+      },
+      { status: 409 },
+    );
+  }
+
+  if (process.env.NODE_ENV === "development" && process.env.REVOK_DEV_OTP_TERMINAL !== "true") {
+    return NextResponse.json(
+      {
+        error: "LOCAL_OTP_DISABLED",
+        message: "Local OTP delivery is disabled. Stop the Next.js server, then restart it in its terminal with REVOK_DEV_OTP_TERMINAL=true. No SMS was sent.",
+      },
+      { status: 503 },
     );
   }
 
@@ -88,11 +110,11 @@ export async function POST(request: Request) {
       success: true,
       message: "OTP sent.",
     });
-  } catch {
-    console.error("SEND PHONE OTP ERROR");
+  } catch (error) {
+    console.error("SEND PHONE OTP ERROR", { name: error instanceof Error ? error.name : "UnknownError" });
 
     return NextResponse.json(
-      { error: "Unable to send OTP." },
+      { error: "OTP_DELIVERY_FAILED", message: "The verification code could not be generated. Check that the development server is running with local OTP enabled, then try again." },
       { status: 500 },
     );
   }

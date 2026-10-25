@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { requireActiveUser } from "@/lib/auth/guards";
-import GooglePhoneVerification from "@/components/auth/GooglePhoneVerification";
+import GoogleAccountSetup from "@/components/auth/GoogleAccountSetup";
 
 export default async function CompleteGoogleSignupPage() {
   let user;
@@ -12,25 +12,25 @@ export default async function CompleteGoogleSignupPage() {
     redirect("/register");
   }
 
-  if (user.phoneNumberVerified) redirect("/");
+  if (user.phoneNumberVerified && user.username) redirect("/");
 
   return (
     <main className="auth-page">
       <aside className="auth-aside">
         <Link href="/" className="brand"><Image src="/img/revok-logo.png" width={52} height={52} alt="" className="brand-logo" /><span>REVOK</span></Link>
         <div className="auth-aside-copy">
-          <p className="eyebrow">One more step</p>
-          <h1>Verify your phone.</h1>
-          <p>Google sign-up is complete. Verify a phone number so your REVOK account can use protected community actions.</p>
+          <p className="eyebrow">Finish setting up</p>
+          <h1>Make it yours.</h1>
+          <p>Choose your permanent username, then verify a phone number to prepare your account for protected community actions.</p>
         </div>
         <p className="auth-aside-note">Your number is used for account verification.</p>
       </aside>
       <section className="auth-main">
         <div className="auth-card">
           <p className="eyebrow">Finish setting up</p>
-          <h2>Verify your phone</h2>
-          <p className="auth-card-intro">Your Google account is connected as {user.email}. Enter a mobile number to receive a local development OTP.</p>
-          <GooglePhoneVerification initialPhone={user.phoneNumber ?? ""} />
+          <h2>Complete your account</h2>
+          <p className="auth-card-intro">Your Google account is connected as {user.email}. Your username is permanent after setup. Phone verification currently uses a local development OTP.</p>
+          <GoogleAccountSetup initialUsername={user.username ?? ""} initialPhone={user.phoneNumber ?? ""} phoneVerified={user.phoneNumberVerified} />
         </div>
       </section>
     </main>

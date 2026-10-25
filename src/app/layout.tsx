@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import CursorFootprints from "@/components/site/CursorFootprints";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  return <html lang="en" data-scroll-behavior="smooth"><body>{children}</body></html>;
+  return <html lang="en" data-scroll-behavior="smooth"><body>{children}<CursorFootprints /></body></html>;
 }

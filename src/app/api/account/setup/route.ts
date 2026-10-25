@@ -60,8 +60,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const existingUsername = await prisma.user.findUnique({
-      where: { username },
+    const normalizedUsername = username.toLowerCase();
+    const existingUsername = await prisma.user.findFirst({
+      where: { username: { equals: normalizedUsername, mode: "insensitive" } },
       select: { id: true },
     });
 
@@ -77,19 +78,28 @@ export async function POST(request: Request) {
     }
 
     await auth.api.setPassword({
-      body: {
-        newPassword: password,
-      },
+      body: { newPassword: password },
       headers: await headers(),
     });
 
-    await prisma.user.update({
-      where: { id: user.id },
+    const claimed = await prisma.user.updateMany({
+      where: { id: user.id, username: null },
       data: {
         name,
-        username,
+        username: normalizedUsername,
+        displayUsername: username,
       },
     });
+    if (claimed.count !== 1) {
+      return Response.json(
+        {
+          ok: false,
+          error: "ACCOUNT_ALREADY_SETUP",
+          message: "A username has already been set for this account and cannot be changed.",
+        },
+        { status: 409 }
+      );
+    }
 
     return Response.json({
       ok: true,

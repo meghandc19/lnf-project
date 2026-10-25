@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import AccountMenu from "@/components/site/AccountMenu";
 import { requireCanBrowse } from "@/lib/auth/guards";
 
 export default async function SiteHeader() {
@@ -14,10 +15,11 @@ export default async function SiteHeader() {
     <header className="site-header">
       <div className="header-inner">
         <Link href="/" className="brand" aria-label="REVOK home">
-          <Image src="/img/revok-logo.png" width={52} height={52} alt="" priority className="brand-logo" />
+          <Image src="/img/revok-logo.png" width={68} height={68} alt="" priority className="brand-logo" />
           <span>REVOK</span>
         </Link>
         <nav className="main-nav" aria-label="Main navigation">
+          <Link href="/">Home</Link>
           <Link href="/items">Search lost items</Link>
           <Link href="/how-it-works">How it works</Link>
           <Link href="/about">About</Link>
@@ -26,10 +28,7 @@ export default async function SiteHeader() {
           {user ? (
             <>
               <Link href="/dashboard" className="header-dashboard">Dashboard</Link>
-              <Link href="/profile" className="header-profile" aria-label={`Edit ${user.name}'s profile`}>
-                {user.image ? <Image src={user.image} width={34} height={34} alt="" unoptimized referrerPolicy="no-referrer" /> : <span aria-hidden="true">{user.name.slice(0, 1).toUpperCase()}</span>}
-                <span className="header-profile-name">{user.name}</span>
-              </Link>
+              <AccountMenu name={user.name} username={user.username} phoneNumber={user.phoneNumber} image={user.image} />
             </>
           ) : (
             <>

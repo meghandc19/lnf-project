@@ -8,6 +8,8 @@ The application uses the Next.js App Router under `src/app`. Route handlers impl
 Browser
   ├─ Better Auth client ── /api/auth/[...all] ── Better Auth ── Prisma/PostgreSQL
   ├─ account pages ─────── /api/account/* ───── auth guards ─── Prisma/PostgreSQL
+  ├─ item reports ──────── /api/items ───────── auth + phone guard ─ Prisma/PostgreSQL
+  │                                               └─ validated private images ─ local .data/uploads
   └─ admin pages ───────── /api/admin/* ─────── admin guard ─── Prisma/PostgreSQL
 ```
 
@@ -17,9 +19,9 @@ Browser
 
 Sessions are resolved from request headers by `src/lib/auth/guards.ts`. The guards load the user record from PostgreSQL so role and status decisions use current database values rather than relying only on the session snapshot.
 
-The signup UI offers phone OTP signup or Google OAuth. Google signup returns to `/register/complete`; that active-session page uses the existing rate-limited account phone OTP endpoints and does not let the account continue past phone verification until the phone is verified. The phone signup flow remains available. Sign-in retains username/password, phone/password, and Google OAuth.
+The signup UI offers phone OTP signup or Google OAuth. Phone signup chooses a username after OTP verification. Google signup returns to `/register/complete`, where a new account claims a username through `/api/account/username` before phone verification. Usernames are case-insensitively checked and saved in lowercase with display casing retained; the update is conditional on the field still being null, and Better Auth's username plugin is configured to make usernames immutable. The flow uses the existing rate-limited phone OTP endpoints. Sign-in retains username/password, phone/password, and Google OAuth.
 
-The phone OTP plugin delegates delivery to the modular callback in `src/lib/auth/sms.ts`. In local development only, with `REVOK_DEV_OTP_TERMINAL=true`, it writes Better Auth's generated OTP to the development terminal and masks the phone to its last four digits. The module throws during startup if this flag is enabled outside development. When disabled, delivery fails closed. No SMS request is made; a future provider adapter can replace this callback.
+The phone OTP plugin delegates delivery to the modular callback in `src/lib/auth/sms.ts`. In local development only, with `REVOK_DEV_OTP_TERMINAL=true`, it writes Better Auth's generated OTP to the development terminal and masks the phone to its last four digits. The module throws during startup if this flag is enabled outside development. When disabled, delivery fails closed. Account verification routes normalize Indian 10-digit and `+91` inputs to the same national form used by signup and phone/password login; they detect already-linked numbers before sending or consuming OTPs. No SMS request is made; a future provider adapter can replace this callback.
 
 ## Authorization and account status
 
@@ -51,4 +53,8 @@ Local development retains `http://localhost:3000` as a trusted origin. When `BET
 
 ## Profile
 
-`PATCH /api/account/profile` requires an active account and is rate-limited per user. Zod bounds the display name, about text, and photo URL. Photo references are HTTPS or same-site paths; there is no upload/storage service. The server-rendered header calls the shared account-status guard and displays profile/dashboard navigation only for a currently permitted session.
+`PATCH /api/account/profile` requires an active account and is rate-limited per user. Zod bounds the display name, about text, and any existing photo reference. The profile UI edits name/about and uses `POST /api/account/profile/photo` for JPEG/PNG/WebP uploads, including small images, up to 8 MB. Active session, same-origin, signature validation, and per-user rate limits are enforced. Phone changes reuse the send/verify OTP endpoints; the current number is replaced only after the new number is verified.
+
+`POST /api/items` accepts lost/found reports only from active users with verified phones. The endpoint applies a per-user in-memory limit, validates report fields and image signatures, and stores report rows and image metadata in the existing Prisma models. New reports retain the schema's `PENDING` moderation status. Owners see their own reports in the dashboard; public item search and `GET /api/items` return only active approved reports. The current app has no moderation review/approval interface, so pending reports remain private.
+
+Profile photos are stored under `public/uploads/`. Item photos are stored outside the public directory under ignored `.data/uploads/`; `GET /api/uploads/items/[filename]` returns them only when the report is approved or belongs to the current permitted account. Files receive random names and uploads are ignored by Git. The original image metadata is retained, so users are warned to remove sensitive location metadata before uploading. This local filesystem implementation is for development only; it is not durable across ephemeral deployments or shared across instances. Configure durable object storage and safe delivery before production deployment. The server-rendered header calls the shared account-status guard and displays profile/dashboard navigation only for a currently permitted session; the account popover is display-only and links to the protected profile page for edits.
