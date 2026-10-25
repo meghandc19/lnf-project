@@ -1,12 +1,16 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
 export default function LogoutButton() {
+  const router = useRouter();
+
   async function handleLogout() {
     await authClient.signOut();
-    window.location.href = "/login";
+    router.push("/login");
+    router.refresh();
   }
 
-  return <button onClick={handleLogout}>Logout</button>;
+  return <button className="logout-button" onClick={handleLogout}>Log out</button>;
 }

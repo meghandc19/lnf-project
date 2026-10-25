@@ -71,6 +71,7 @@ enum ModerationStatus {
 model User {
   id        String  @id @default(cuid())
   name      String
+  about     String? @db.VarChar(280)
   email     String  @unique
   emailVerified Boolean @default(false)
   image     String?

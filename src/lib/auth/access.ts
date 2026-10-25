@@ -7,6 +7,10 @@ export function canBrowse(status: UserStatus) {
   );
 }
 
+export function canAccessApplication(status: UserStatus) {
+  return status === "ACTIVE" || status === "RESTRICTED";
+}
+
 export function hasVerifiedPhone(
   phoneNumberVerified: boolean,
 ) {

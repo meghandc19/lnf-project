@@ -42,6 +42,10 @@ export async function performUserAdminAction(
         },
       });
 
+      if (action === "BAN") {
+        await tx.session.deleteMany({ where: { userId: targetUserId } });
+      }
+
       await tx.auditLog.create({
         data: {
           actorId,

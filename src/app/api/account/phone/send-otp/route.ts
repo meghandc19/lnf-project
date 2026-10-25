@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth/auth";
+import { requireActiveUser } from "@/lib/auth/guards";
+import { handleApiError } from "@/lib/api/handle-error";
+import {
+  checkRateLimit,
+  hashRateLimitKey,
+  rateLimitResponse,
+} from "@/lib/security/rate-limit";
 
 const phoneSchema = z.object({
   phoneNumber: z
@@ -15,15 +21,11 @@ const phoneSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 },
-    );
+  let user;
+  try {
+    user = await requireActiveUser();
+  } catch (error) {
+    return handleApiError(error);
   }
 
   let body: unknown;
@@ -51,9 +53,23 @@ export async function POST(request: Request) {
 
   const phoneNumber = result.data.phoneNumber;
 
+  const phoneLimit = checkRateLimit(
+    hashRateLimitKey("account-send-otp-phone", phoneNumber),
+    3,
+    60 * 60 * 1000,
+  );
+  if (!phoneLimit.allowed) return rateLimitResponse(phoneLimit.retryAfterMs);
+
+  const userLimit = checkRateLimit(
+    hashRateLimitKey("account-send-otp-user", user.id),
+    5,
+    60 * 60 * 1000,
+  );
+  if (!userLimit.allowed) return rateLimitResponse(userLimit.retryAfterMs);
+
   if (
-    session.user.phoneNumber === phoneNumber &&
-    session.user.phoneNumberVerified
+    user.phoneNumber === phoneNumber &&
+    user.phoneNumberVerified
   ) {
     return NextResponse.json(
       { error: "This phone number is already verified." },
@@ -72,8 +88,8 @@ export async function POST(request: Request) {
       success: true,
       message: "OTP sent.",
     });
-  } catch (error) {
-    console.error("SEND PHONE OTP ERROR:", error);
+  } catch {
+    console.error("SEND PHONE OTP ERROR");
 
     return NextResponse.json(
       { error: "Unable to send OTP." },

@@ -1,13 +1,25 @@
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth/auth";
-import { requireLogin } from "@/lib/auth/guards";
+import { requireActiveUser } from "@/lib/auth/guards";
 import { setupCredentialsSchema } from "@/lib/validation/auth";
 import { handleApiError } from "@/lib/api/handle-error";
+import {
+  checkRateLimit,
+  hashRateLimitKey,
+  rateLimitResponse,
+} from "@/lib/security/rate-limit";
 
 export async function POST(request: Request) {
   try {
-    const user = await requireLogin();
+    const user = await requireActiveUser();
+
+    const limit = checkRateLimit(
+      hashRateLimitKey("account-setup", user.id),
+      5,
+      60 * 60 * 1000,
+    );
+    if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
 
     const body = await request.json();
     const parsed = setupCredentialsSchema.safeParse(body);

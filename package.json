@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:security": "node --test src/lib/security/rate-limit.test.mjs src/lib/auth/access.test.mjs src/lib/profile/validation.test.mjs",
     "admin:promote": "tsx scripts/promote-admin.ts"
   },
   "dependencies": {

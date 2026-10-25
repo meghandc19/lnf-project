@@ -1,30 +1,41 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/auth-client";
-import {
-  indianPhoneSchema,
-  normalizeIndianPhone,
-} from "@/lib/validation/common";
+import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
+
+type RegistrationStep = "phone" | "otp" | "details";
 
 export default function RegisterPage() {
-  const [step, setStep] = useState<"phone" | "otp" | "details">("phone");
-
+  const router = useRouter();
+  const [step, setStep] = useState<RegistrationStep>("phone");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  async function signUpWithGoogle() {
+    setMessage("");
+    setGoogleLoading(true);
+    try {
+      await authClient.signIn.social({ provider: "google", callbackURL: "/register/complete" });
+    } catch {
+      setMessage("Google sign-up is temporarily unavailable. Please try again.");
+      setGoogleLoading(false);
+    }
+  }
 
   async function sendOtp() {
     setLoading(true);
     setMessage("");
-
     const validation = indianPhoneSchema.safeParse(phoneNumber);
-
     if (!validation.success) {
       setMessage("Enter a valid 10-digit Indian mobile number.");
       setLoading(false);
@@ -32,22 +43,17 @@ export default function RegisterPage() {
     }
 
     const normalizedPhone = normalizeIndianPhone(phoneNumber);
-
     try {
-      const result = await authClient.phoneNumber.sendOtp({
-        phoneNumber: normalizedPhone,
-      });
-
+      const result = await authClient.phoneNumber.sendOtp({ phoneNumber: normalizedPhone });
       if (result.error) {
-        setMessage(result.error.message || "Failed to send OTP.");
+        setMessage("Could not prepare a verification code. Check the local server and try again.");
         return;
       }
-
       setPhoneNumber(normalizedPhone);
       setStep("otp");
-      setMessage("OTP sent. Check the terminal for the development OTP.");
+      setMessage("A development OTP was generated. Check the local Next.js terminal; no SMS is sent.");
     } catch {
-      setMessage("Something went wrong.");
+      setMessage("Could not prepare a verification code. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -56,22 +62,16 @@ export default function RegisterPage() {
   async function verifyOtp() {
     setLoading(true);
     setMessage("");
-
     try {
-      const result = await authClient.phoneNumber.verify({
-        phoneNumber,
-        code: otp,
-      });
-
+      const result = await authClient.phoneNumber.verify({ phoneNumber, code: otp });
       if (result.error) {
-        setMessage(result.error.message || "Invalid OTP.");
+        setMessage("That code is invalid or expired. Check the terminal output or request a new code.");
         return;
       }
-
       setStep("details");
-      setMessage("Phone verified successfully.");
+      setMessage("Phone verified. Complete your account details.");
     } catch {
-      setMessage("Something went wrong.");
+      setMessage("Could not verify that code. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -80,189 +80,89 @@ export default function RegisterPage() {
   async function finishSignup() {
     setLoading(true);
     setMessage("");
-
     try {
       const response = await fetch("/api/account/setup", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          username,
-          password,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, username, password }),
       });
-
       const result = await response.json();
-
       if (!response.ok) {
-        setMessage(result.message || "Could not create your account.");
+        setMessage(result.message || "Could not create the account. Check the details and try again.");
         return;
       }
-
-      setMessage("Account created successfully.");
-
-      window.location.href = "/dashboard";
+      router.push("/");
+      router.refresh();
     } catch {
-      setMessage("Something went wrong. Please try again.");
+      setMessage("Could not create the account. Please try again.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 px-4 py-8 text-gray-900">
-      <div className="mx-auto flex min-h-[90vh] w-full max-w-md items-center">
-        <div className="w-full rounded-2xl border border-gray-300 bg-white p-6 shadow-md sm:p-8">
-          
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-green-700">
-              REVOK
-            </h1>
+    <main className="auth-page">
+      <aside className="auth-aside">
+        <Link href="/" className="brand"><Image src="/img/revok-logo.png" width={52} height={52} alt="" className="brand-logo" /><span>REVOK</span></Link>
+        <div className="auth-aside-copy">
+          <p className="eyebrow">A community lost and found</p>
+          <h1>Start with a little trust.</h1>
+          <p>Phone verification helps prepare accounts for sensitive actions. Lost-and-found reporting is still being developed.</p>
+        </div>
+        <p className="auth-aside-note"><Link href="/">← Back to REVOK</Link></p>
+      </aside>
 
-            <p className="mt-2 text-sm text-gray-600">
-              Create your account
-            </p>
-          </div>
+      <section className="auth-main" aria-labelledby="register-heading">
+        <div className="auth-card">
+          <p className="eyebrow">Create your account</p>
+          <h2 id="register-heading">Join REVOK</h2>
+          <p className="auth-card-intro">A few steps, then you’re ready to continue.</p>
+          <button className="auth-google-button" type="button" onClick={signUpWithGoogle} disabled={loading || googleLoading}>
+            <span className="google-g" aria-hidden="true">G</span>{googleLoading ? "Opening Google…" : "Continue with Google"}
+          </button>
+          <div className="auth-divider">or sign up with phone</div>
+          <p className="auth-step" aria-live="polite"><strong>{step === "phone" ? "1" : step === "otp" ? "2" : "3"} of 3</strong> · {step === "phone" ? "Verify your phone" : step === "otp" ? "Enter your code" : "Account details"}</p>
 
           {step === "phone" && (
-            <section>
-              <h2 className="mb-5 text-xl font-semibold">
-                Verify your phone
-              </h2>
-
-              <label className="mb-2 block text-sm font-medium">
-                Phone number
+            <div className="auth-form">
+              <label className="auth-field" htmlFor="register-phone">Phone number
+                <input id="register-phone" type="tel" inputMode="tel" autoComplete="tel" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} placeholder="98765 43210" required />
               </label>
-
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="9876543210 or +91 9876543210"
-                className="w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-3 text-base text-gray-900 outline-none focus:border-green-600"
-              />
-
-              <button
-                type="button"
-                onClick={sendOtp}
-                disabled={loading || !phoneNumber}
-                className="mt-5 w-full rounded-lg bg-green-700 px-4 py-3 font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400"
-              >
-                {loading ? "Sending OTP..." : "Send OTP"}
-              </button>
-            </section>
-          )}
-
-          {step === "otp" && (
-            <section>
-              <h2 className="mb-2 text-xl font-semibold">
-                Enter OTP
-              </h2>
-
-              <p className="mb-5 text-sm text-gray-600">
-                OTP sent to {phoneNumber}
-              </p>
-
-              <label className="mb-2 block text-sm font-medium">
-                OTP
-              </label>
-
-              <input
-                type="text"
-                inputMode="numeric"
-                value={otp}
-                onChange={(e) =>
-                  setOtp(e.target.value.replace(/\D/g, ""))
-                }
-                maxLength={6}
-                placeholder="123456"
-                className="w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-3 text-center text-xl tracking-[0.4em] text-gray-900 outline-none focus:border-green-600"
-              />
-
-              <button
-                type="button"
-                onClick={verifyOtp}
-                disabled={loading || otp.length < 4}
-                className="mt-5 w-full rounded-lg bg-green-700 px-4 py-3 font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400"
-              >
-                {loading ? "Verifying..." : "Verify OTP"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("phone");
-                  setMessage("");
-                }}
-                className="mt-3 w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-3 font-medium text-gray-800"
-              >
-                Change phone number
-              </button>
-            </section>
-          )}
-
-          {step === "details" && (
-            <section>
-              <h2 className="mb-5 text-xl font-semibold">
-                Complete your account
-              </h2>
-
-              <label className="mb-2 block text-sm font-medium">
-                Name
-              </label>
-
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-                className="mb-4 w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-green-600"
-              />
-
-              <label className="mb-2 block text-sm font-medium">
-                Username
-              </label>
-
-              <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="username"
-                className="mb-4 w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-green-600"
-              />
-
-              <label className="mb-2 block text-sm font-medium">
-                Password
-              </label>
-
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Minimum 8 characters"
-                className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-green-600"
-              />
-
-              <button
-                type="button"
-                onClick={finishSignup}
-                disabled={loading || !name || !username || password.length < 8}
-                className="mt-5 w-full rounded-lg bg-green-700 px-4 py-3 font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400"
-              >
-                {loading ? "Creating Account..." : "Create Account"}
-              </button>
-            </section>
-          )}
-
-          {message && (
-            <div className="mt-5 rounded-lg border border-green-300 bg-green-50 p-3 text-sm font-medium text-green-800">
-              {message}
+              <p className="auth-help">Local development sends the code to the server terminal only. No SMS provider is contacted.</p>
+              <button className="auth-submit" type="button" onClick={sendOtp} disabled={loading || !phoneNumber}>{loading ? "Preparing code…" : "Generate verification code"}</button>
             </div>
           )}
 
+          {step === "otp" && (
+            <div className="auth-form">
+              <p className="auth-help">Enter the six-digit code printed in the local development terminal for {phoneNumber}.</p>
+              <label className="auth-field" htmlFor="register-otp">Verification code
+                <input id="register-otp" type="text" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" maxLength={6} required />
+              </label>
+              <button className="auth-submit" type="button" onClick={verifyOtp} disabled={loading || otp.length !== 6}>{loading ? "Verifying…" : "Verify phone"}</button>
+              <button className="button button-outline" type="button" onClick={() => { setStep("phone"); setMessage(""); setOtp(""); }}>Change phone number</button>
+            </div>
+          )}
+
+          {step === "details" && (
+            <div className="auth-form">
+              <label className="auth-field" htmlFor="register-name">Name
+                <input id="register-name" type="text" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" required />
+              </label>
+              <label className="auth-field" htmlFor="register-username">Username
+                <input id="register-username" type="text" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Choose a username" required />
+              </label>
+              <label className="auth-field" htmlFor="register-password">Password
+                <input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" minLength={8} required />
+              </label>
+              <button className="auth-submit" type="button" onClick={finishSignup} disabled={loading || !name || !username || password.length < 8}>{loading ? "Creating account…" : "Create account"}</button>
+            </div>
+          )}
+
+          {message && <p className="auth-message" role="status" aria-live="polite">{message}</p>}
+          <p className="auth-switch">Already registered? <Link href="/login">Log in</Link></p>
         </div>
-      </div>
+      </section>
     </main>
   );
 }

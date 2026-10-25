@@ -4,6 +4,13 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/prisma";
+import { requireActiveUser } from "@/lib/auth/guards";
+import { handleApiError } from "@/lib/api/handle-error";
+import {
+  checkRateLimit,
+  hashRateLimitKey,
+  rateLimitResponse,
+} from "@/lib/security/rate-limit";
 
 const verifySchema = z.object({
   phoneNumber: z
@@ -23,15 +30,11 @@ const verifySchema = z.object({
 export async function POST(request: Request) {
   const requestHeaders = await headers();
 
-  const session = await auth.api.getSession({
-    headers: requestHeaders,
-  });
-
-  if (!session?.user) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 },
-    );
+  let user;
+  try {
+    user = await requireActiveUser();
+  } catch (error) {
+    return handleApiError(error);
   }
 
   let body: unknown;
@@ -57,6 +60,20 @@ export async function POST(request: Request) {
     );
   }
 
+  const phoneLimit = checkRateLimit(
+    hashRateLimitKey("account-verify-otp-phone", result.data.phoneNumber),
+    5,
+    15 * 60 * 1000,
+  );
+  if (!phoneLimit.allowed) return rateLimitResponse(phoneLimit.retryAfterMs);
+
+  const userLimit = checkRateLimit(
+    hashRateLimitKey("account-verify-otp-user", user.id),
+    20,
+    15 * 60 * 1000,
+  );
+  if (!userLimit.allowed) return rateLimitResponse(userLimit.retryAfterMs);
+
   try {
     await auth.api.verifyPhoneNumber({
       headers: requestHeaders,
@@ -71,7 +88,7 @@ export async function POST(request: Request) {
 
     await prisma.user.update({
       where: {
-        id: session.user.id,
+        id: user.id,
       },
 
       data: {
@@ -85,8 +102,8 @@ export async function POST(request: Request) {
       success: true,
       message: "Phone number verified successfully.",
     });
-  } catch (error) {
-    console.error("VERIFY PHONE ERROR:", error);
+  } catch {
+    console.error("VERIFY PHONE ERROR");
 
     return NextResponse.json(
       {

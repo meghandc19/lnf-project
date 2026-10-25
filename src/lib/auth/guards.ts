@@ -28,7 +28,7 @@ export async function getAuthenticatedUser() {
 export async function requireLogin() {
   const user = await getAuthenticatedUser();
 
-  if (!user) {
+  if (!user || user.status === "BANNED" || user.status === "DELETED") {
     throw unauthorized();
   }
 
@@ -43,6 +43,10 @@ export async function requireActiveUser() {
   }
 
   return user;
+}
+
+export async function requireCanBrowse() {
+  return requireLogin();
 }
 
 export async function requirePhoneVerified() {
