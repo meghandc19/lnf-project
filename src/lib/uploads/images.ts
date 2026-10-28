@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { s3Request } from "@/lib/uploads/s3";
 
 export const IMAGE_LIMITS = {
   profile: 8 * 1024 * 1024,
@@ -15,6 +16,13 @@ const formats = {
 
 export type ImageMimeType = keyof typeof formats;
 
+function storageDriver() {
+  const driver = process.env.UPLOAD_STORAGE?.trim().toLowerCase();
+  if (process.env.NODE_ENV === "production" && driver !== "s3") throw new Error("Production requires S3-compatible image storage.");
+  if (!driver || driver === "filesystem") return "filesystem" as const;
+  if (driver === "s3") return "s3" as const;
+  throw new Error("Unsupported image storage configuration.");
+}
 export async function validateImage(file: File, maxBytes: number) {
   if (file.size <= 0 || file.size > maxBytes || !Object.prototype.hasOwnProperty.call(formats, file.type)) {
     throw new Error("Choose a JPEG, PNG, or WebP image within the size limit.");
@@ -30,6 +38,12 @@ export async function validateImage(file: File, maxBytes: number) {
 export async function storeImage(scope: "profiles" | "items", file: File, maxBytes: number) {
   const { bytes, mimeType, extension } = await validateImage(file, maxBytes);
   const filename = `${randomUUID()}${extension}`;
+  const driver = scope === "items" ? storageDriver() : "filesystem";
+  const storageKey = `${scope}/${filename}`;
+  if (driver === "s3") {
+    await s3Request("PUT", storageKey, bytes, mimeType);
+    return { url: `/api/uploads/items/${filename}`, storageKey, mimeType, sizeBytes: bytes.byteLength };
+  }
   const directory = scope === "profiles"
     ? path.join(process.cwd(), "public", "uploads", "profiles")
     : path.join(process.cwd(), ".data", "uploads", "items");
@@ -37,7 +51,7 @@ export async function storeImage(scope: "profiles" | "items", file: File, maxByt
   await writeFile(path.join(/*turbopackIgnore: true*/ directory, filename), bytes, { flag: "wx" });
   return {
     url: scope === "profiles" ? `/uploads/profiles/${filename}` : `/api/uploads/items/${filename}`,
-    storageKey: `${scope}/${filename}`,
+    storageKey,
     mimeType,
     sizeBytes: bytes.byteLength,
   };
@@ -46,6 +60,10 @@ export async function storeImage(scope: "profiles" | "items", file: File, maxByt
 export async function removeStoredImage(storageKey: string) {
   if (!/^(profiles|items)\/[a-f0-9-]+\.(jpg|png|webp)$/i.test(storageKey)) return;
   const [scope, filename] = storageKey.split("/");
+  if (scope === "items" && storageDriver() === "s3") {
+    await s3Request("DELETE", storageKey);
+    return;
+  }
   const filePath = scope === "profiles"
     ? path.join(process.cwd(), "public", "uploads", "profiles", filename)
     : path.join(process.cwd(), ".data", "uploads", "items", filename);
@@ -54,4 +72,12 @@ export async function removeStoredImage(storageKey: string) {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
+}
+
+export async function readStoredImage(storageKey: string) {
+  if (!/^items\/[a-f0-9-]+\.(jpg|png|webp)$/i.test(storageKey)) throw new Error("Invalid image key.");
+  if (storageDriver() === "s3") {
+    return await s3Request("GET", storageKey);
+  }
+  return new Uint8Array(await readFile(path.join(process.cwd(), ".data", "uploads", "items", storageKey.split("/")[1])));
 }

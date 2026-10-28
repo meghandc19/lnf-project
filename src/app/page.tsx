@@ -3,6 +3,7 @@ import Link from "next/link";
 import heroBanner from "../../public/img/web banner.png";
 import SiteFooter from "@/components/site/SiteFooter";
 import SiteHeader from "@/components/site/SiteHeader";
+import IntroAnimation from "@/components/site/IntroAnimation";
 import { requireCanBrowse } from "@/lib/auth/guards";
 
 const actions = [
@@ -28,6 +29,7 @@ export default async function Home() {
 
   return (
     <div className="site-page">
+      <IntroAnimation />
       <SiteHeader />
       <main>
         <section className="hero-section">

@@ -45,13 +45,16 @@ npm run dev -- --hostname 0.0.0.0
 
 Find the computer's private IPv4 address with `ipconfig`, then open `http://<computer-ip>:3000` on the phone (for example, `http://192.168.1.20:3000`). If Windows Firewall asks, allow access on the private network. For phone-based username/password and OTP auth, set `REVOK_LOCAL_NETWORK_ORIGIN` in `.env` to that exact local origin and restart the server; only private/local origins are accepted, and only while `NODE_ENV=development`. The auth client uses the page's current origin. Google OAuth callbacks still depend on `BETTER_AUTH_URL` and Google callback configuration, so phone OAuth may need a matching callback registered separately.
 
-Responsive layouts use CSS breakpoints and a mobile-first home page. The profile editor saves display name and a 280-character about field. JPEG/PNG/WebP profile photos can be selected or dragged and dropped, including small images, up to 8 MB; profile photos are public. Verified phone numbers can be changed only after an OTP is verified for the new number. Lost/found reports require an active account with a verified phone, save their details and up to three JPEG/PNG/WebP photos (5 MB each), and appear in the owner's dashboard after submission. Reports stay private while `PENDING`; item photos are stored outside `public/` and served only to their owner or after approval. Public search displays only reports marked `APPROVED`. The app does not yet include a review/approval interface. Image metadata is retained, so remove GPS/location data before uploading. Local profile photos are in `public/uploads`; item photos are in ignored `.data/uploads`. This is suitable for local development only; persistent production hosting needs durable object storage.
+Responsive layouts use CSS breakpoints and a mobile-first home page. The profile editor saves display name and a 280-character about field. JPEG/PNG/WebP profile photos can be selected or dragged and dropped, including small images, up to 8 MB; profile photos are public. Verified phone numbers can be changed only after an OTP is verified for the new number. Lost/found reports require an active account with a verified phone and save item identification, category/subcategory, date/time, location details, private owner-only verification details, and up to three JPEG/PNG/WebP photos (5 MB each). Reports persist in PostgreSQL and remain connected to the owner dashboard. Owners can view, edit, resolve/reopen, and soft-delete their own reports. Edits return to pending review. Active admins can review pending/flagged reports at `/admin/reports`; public search only displays active approved reports, and public details omit private verification information. Image metadata is retained; remove GPS/location data and cover personal information in ID photos before uploading. Local item uploads use ignored `.data/uploads`. Production requires an S3-compatible object store; profile photos remain local and need a separate production storage solution.
+
+For a production deployment, configure `UPLOAD_STORAGE=s3`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`. Set `S3_ENDPOINT` for an S3-compatible provider with a custom endpoint. Never commit these values. Production intentionally rejects local filesystem item storage. A real bucket, IAM policy, and deployment have not been tested in this repository.
 
 ## Available checks
 
 ```bash
 npm run lint
 npm run test:security
+npm run test:items
 npx tsc --noEmit
 npm run build
 ```

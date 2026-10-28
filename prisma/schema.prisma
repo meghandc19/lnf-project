@@ -168,6 +168,13 @@ model LostItem {
   categoryId  String
   brand          String?
   color          String?
+  subcategory    String?
+  model          String?
+  material       String?
+  identifyingMarks String?
+  approximateTime String?
+  locationDetails String?
+  contactedAbout String?
   privateDetails String?
 
   title       String
@@ -196,6 +203,13 @@ model FoundItem {
   categoryId  String
   brand          String?
   color          String?
+  subcategory    String?
+  model          String?
+  material       String?
+  identifyingMarks String?
+  approximateTime String?
+  locationDetails String?
+  custodyStatus  String?
   privateDetails String?
 
   title       String

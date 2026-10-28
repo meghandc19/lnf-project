@@ -1,22 +1,11 @@
-import { z } from "zod";
-
 import { requirePhoneVerified } from "@/lib/auth/guards";
 import { handleApiError } from "@/lib/api/handle-error";
-import { ITEM_CATEGORIES } from "@/lib/items/categories";
+import { reportSchema } from "@/lib/items/report-validation";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
 import { IMAGE_LIMITS, removeStoredImage, storeImage } from "@/lib/uploads/images";
 
 export const runtime = "nodejs";
-
-const reportSchema = z.object({
-  type: z.enum(["LOST", "FOUND"]),
-  title: z.string().trim().min(3).max(100),
-  description: z.string().trim().min(10).max(2000),
-  location: z.string().trim().min(3).max(180),
-  category: z.enum(ITEM_CATEGORIES),
-  occurredAt: z.iso.datetime({ offset: true }).transform((value) => new Date(value)),
-});
 
 export async function POST(request: Request) {
   const savedImages: string[] = [];
@@ -39,6 +28,17 @@ export async function POST(request: Request) {
       description: form.get("description"),
       location: form.get("location"),
       category: form.get("category"),
+      subcategory: form.get("subcategory") || undefined,
+      brand: form.get("brand") || undefined,
+      model: form.get("model") || undefined,
+      color: form.get("color") || undefined,
+      material: form.get("material") || undefined,
+      identifyingMarks: form.get("identifyingMarks") || undefined,
+      privateDetails: form.get("privateDetails") || undefined,
+      approximateTime: form.get("approximateTime") || undefined,
+      locationDetails: form.get("locationDetails") || undefined,
+      contactedAbout: form.get("contactedAbout") || undefined,
+      custodyStatus: form.get("custodyStatus") || undefined,
       occurredAt: form.get("occurredAt"),
     });
     if (!parsed.success) return Response.json({ message: "Check the required report details and try again." }, { status: 400 });
@@ -62,6 +62,10 @@ export async function POST(request: Request) {
           data: {
             userId: user.id, categoryId: category.id, title: parsed.data.title,
             description: parsed.data.description, location: parsed.data.location,
+            subcategory: parsed.data.subcategory, brand: parsed.data.brand, model: parsed.data.model,
+            color: parsed.data.color, material: parsed.data.material, identifyingMarks: parsed.data.identifyingMarks,
+            privateDetails: parsed.data.privateDetails, approximateTime: parsed.data.approximateTime,
+            locationDetails: parsed.data.locationDetails, contactedAbout: parsed.data.contactedAbout,
             lostAt: parsed.data.occurredAt,
             images: { create: files.map((file, index) => ({ url: `/api/uploads/items/${savedImages[index].split("/").at(-1)}`, storageKey: savedImages[index], mimeType: file.type, sizeBytes: file.size })) },
           },
@@ -71,6 +75,10 @@ export async function POST(request: Request) {
           data: {
             userId: user.id, categoryId: category.id, title: parsed.data.title,
             description: parsed.data.description, location: parsed.data.location,
+            subcategory: parsed.data.subcategory, brand: parsed.data.brand, model: parsed.data.model,
+            color: parsed.data.color, material: parsed.data.material, identifyingMarks: parsed.data.identifyingMarks,
+            privateDetails: parsed.data.privateDetails, approximateTime: parsed.data.approximateTime,
+            locationDetails: parsed.data.locationDetails, custodyStatus: parsed.data.custodyStatus,
             foundAt: parsed.data.occurredAt,
             images: { create: files.map((file, index) => ({ url: `/api/uploads/items/${savedImages[index].split("/").at(-1)}`, storageKey: savedImages[index], mimeType: file.type, sizeBytes: file.size })) },
           },
@@ -79,7 +87,7 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true, report: { ...report, type: parsed.data.type } }, { status: 201 });
   } catch (error) {
-    await Promise.all(savedImages.map(removeStoredImage));
+    await Promise.allSettled(savedImages.map(removeStoredImage));
     if (error instanceof Error && (error.message.startsWith("Choose a JPEG") || error.message.startsWith("The selected file"))) {
       return Response.json({ message: error.message }, { status: 400 });
     }
@@ -94,8 +102,8 @@ export async function GET(request: Request) {
     return Response.json({ message: "Invalid report type." }, { status: 400 });
   }
   const [lost, found] = await Promise.all([
-    !type || type === "LOST" ? prisma.lostItem.findMany({ where: { deletedAt: null, status: "ACTIVE", moderation: "APPROVED" }, orderBy: { createdAt: "desc" }, take: 50, include: { images: true, category: true } }) : [],
-    !type || type === "FOUND" ? prisma.foundItem.findMany({ where: { deletedAt: null, status: "ACTIVE", moderation: "APPROVED" }, orderBy: { createdAt: "desc" }, take: 50, include: { images: true, category: true } }) : [],
+    !type || type === "LOST" ? prisma.lostItem.findMany({ where: { deletedAt: null, status: "ACTIVE", moderation: "APPROVED" }, orderBy: { createdAt: "desc" }, take: 50, select: { id: true, title: true, description: true, location: true, lostAt: true, createdAt: true, brand: true, model: true, color: true, subcategory: true, material: true, identifyingMarks: true, approximateTime: true, locationDetails: true, status: true, moderation: true, category: { select: { name: true } }, images: { select: { id: true, url: true, mimeType: true, sizeBytes: true } } } }) : [],
+    !type || type === "FOUND" ? prisma.foundItem.findMany({ where: { deletedAt: null, status: "ACTIVE", moderation: "APPROVED" }, orderBy: { createdAt: "desc" }, take: 50, select: { id: true, title: true, description: true, location: true, foundAt: true, createdAt: true, brand: true, model: true, color: true, subcategory: true, material: true, identifyingMarks: true, approximateTime: true, locationDetails: true, custodyStatus: true, status: true, moderation: true, category: { select: { name: true } }, images: { select: { id: true, url: true, mimeType: true, sizeBytes: true } } } }) : [],
   ]);
   return Response.json({ reports: [...lost.map((report) => ({ ...report, type: "LOST" })), ...found.map((report) => ({ ...report, type: "FOUND" }))].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 50) });
 }

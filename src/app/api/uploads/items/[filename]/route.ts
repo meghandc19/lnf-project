@@ -1,7 +1,6 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { readStoredImage } from "@/lib/uploads/images";
 
 export const runtime = "nodejs";
 
@@ -13,16 +12,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
 
   try {
     const user = await getAuthenticatedUser();
+    if (user?.status === "BANNED" || user?.status === "DELETED") return new Response("Not found", { status: 404 });
     const storageKey = `items/${filename}`;
-    const visibility = [
-      { moderation: "APPROVED" as const },
-      ...(user && (user.status === "ACTIVE" || user.status === "RESTRICTED") ? [{ userId: user.id }] : []),
-    ];
     const reportFilter = {
       images: { some: { storageKey } },
       deletedAt: null,
-      status: "ACTIVE" as const,
-      OR: visibility,
+      OR: [
+        { status: "ACTIVE" as const, moderation: "APPROVED" as const },
+        ...(user && (user.status === "ACTIVE" || user.status === "RESTRICTED") ? [{ userId: user.id }] : []),
+        ...(user?.status === "ACTIVE" && (user.role === "ADMIN" || user.role === "SUPER_ADMIN") ? [{ moderation: { in: ["PENDING", "FLAGGED", "BLOCKED"] as ("PENDING" | "FLAGGED" | "BLOCKED")[] } }] : []),
+      ],
     };
     const [lost, found] = await Promise.all([
       prisma.lostItem.findFirst({ where: reportFilter, select: { images: { where: { storageKey }, select: { mimeType: true } } } }),
@@ -33,7 +32,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
       return new Response("Not found", { status: 404 });
     }
 
-    const image = await readFile(path.join(process.cwd(), ".data", "uploads", "items", filename));
+    const image = await readStoredImage(storageKey);
     return new Response(new Uint8Array(image), {
       headers: {
         "Content-Type": mimeType,

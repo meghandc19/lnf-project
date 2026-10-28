@@ -48,6 +48,7 @@ export default async function AdminPage() {
 
         <div className="admin-section-heading">
           <div><h2>Recent accounts</h2><p>Latest 50 user records. Contact details are omitted.</p></div>
+          <Link href="/admin/reports" className="button button-primary">Review item reports</Link>
           <Link href="/dashboard" className="text-link">Your dashboard <span aria-hidden="true">→</span></Link>
         </div>
         <div className="admin-table-wrap">
@@ -65,7 +66,7 @@ export default async function AdminPage() {
             </table>
           )}
         </div>
-        <p className="admin-note">Item moderation and report analytics are not available because item reporting is not implemented yet.</p>
+        <p className="admin-note">Item report review is available only to active administrators.</p>
       </main>
       <SiteFooter />
     </div>

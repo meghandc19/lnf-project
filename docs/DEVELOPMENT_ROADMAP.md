@@ -31,15 +31,14 @@ Authentication UI note: signup now presents Google OAuth and phone OTP options; 
 Account setup note: phone signup chooses an available immutable username after OTP. New Google signups choose an available immutable username before phone verification. Profile photo uploads accept small valid JPEG/PNG/WebP files up to 8 MB; profile image URL entry is not shown in the editor.
 
 ## Phase 3 - Lost & Found
-- [x] Lost and found report creation APIs
-- [ ] Create/edit/remove (creation implemented; edit/remove pending)
-- [x] Search approved public reports by title, description, category, and location
-- [ ] Filters
-- [ ] Item details
-- [x] JPEG/PNG/WebP image upload for reports (local filesystem only)
-- [x] Owner dashboard report history and moderation status
-- [ ] Moderation review/approval interface (pending reports remain private)
-- [ ] Durable object storage for deployment
+- [x] Lost/found reports with optional item detail, location, time, privacy, and found custody fields
+- [x] Create/edit/soft-delete reports with owner authorization; resolve/reopen status
+- [x] Public search filters, sorting, pagination, and item detail pages
+- [x] JPEG/PNG/WebP image upload with local development storage and S3-compatible production adapter
+- [x] Owner dashboard history and report controls
+- [x] Server-protected admin review queue with approve/flag/block decisions and audit records
+- [ ] Configure and verify an actual production object-storage bucket and deployment
+- [ ] Authenticated multi-user database integration tests
 
 ## Phase 4 - Matching
 - [ ] Matching algorithm

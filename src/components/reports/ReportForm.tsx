@@ -89,6 +89,18 @@ export default function ReportForm({ type }: { type: "LOST" | "FOUND" }) {
           {ITEM_CATEGORIES.map((category) => <option key={category}>{category}</option>)}
         </select>
       </label>
+      <label className="auth-field">Subcategory <small>(optional)</small>
+        <input name="subcategory" maxLength={80} placeholder="For example, headphones or student ID" />
+      </label>
+      <div className="report-field-grid">
+        <label className="auth-field">Brand <small>(optional)</small><input name="brand" maxLength={100} placeholder="Brand or manufacturer" /></label>
+        <label className="auth-field">Model <small>(optional)</small><input name="model" maxLength={100} placeholder="Model or product name" /></label>
+        <label className="auth-field">Color <small>(optional)</small><input name="color" maxLength={80} placeholder="Main color" /></label>
+        <label className="auth-field">Material or appearance <small>(optional)</small><input name="material" maxLength={120} placeholder="Leather, metal, pattern…" /></label>
+      </div>
+      <label className="auth-field">Distinguishing marks <small>(optional)</small>
+        <textarea name="identifyingMarks" maxLength={500} rows={2} placeholder="Stickers, scratches, accessories, or unique visible features" />
+      </label>
       <label className="auth-field">Description
         <textarea name="description" required minLength={10} maxLength={2000} rows={5} placeholder="Describe identifying details. Keep serial numbers or unique proof private." />
       </label>
@@ -98,12 +110,20 @@ export default function ReportForm({ type }: { type: "LOST" | "FOUND" }) {
       <label className="auth-field">{isLost ? "Date lost" : "Date found"}
         <input name="occurredAt" type="datetime-local" max={localDateTimeValue()} defaultValue={localDateTimeValue()} required />
       </label>
+      <label className="auth-field">Approximate time <small>(optional)</small><input name="approximateTime" maxLength={80} placeholder="For example, around 2:30 pm" /></label>
+      <label className="auth-field">More location detail <small>(optional)</small><textarea name="locationDetails" maxLength={300} rows={2} placeholder="Building, floor, classroom, or nearby landmark. Avoid private addresses." /></label>
+      {isLost ? <label className="auth-field">Already contacted <small>(optional)</small><input name="contactedAbout" maxLength={200} placeholder="For example, library help desk" /></label> : <label className="auth-field">Where is the item now?
+        <select name="custodyStatus" defaultValue="UNKNOWN"><option value="UNKNOWN">Not sure / prefer not to say</option><option value="WITH_FINDER">With me</option><option value="SECURITY_OFFICE">Submitted to a security office</option><option value="HANDED_OVER">Handed to an authorized person</option></select>
+      </label>}
+      <label className="auth-field">Private identifying detail <small>(optional, only you can see this)</small>
+        <textarea name="privateDetails" maxLength={1000} rows={3} placeholder="For example, hidden contents or a detail someone must confirm to prove ownership" />
+      </label>
       <div className="auth-field">
         <span>Photos <small>(optional, up to 3; JPEG, PNG, WebP; 5 MB each)</small></span>
         <label className={`image-dropzone${dragging ? " is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
           <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="visually-hidden" onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.currentTarget.value = ""; }} />
           <strong>Choose photos or drag and drop</strong>
-          <span>Images are uploaded when you submit the report.</span>
+          <span>{isLost ? "A photo can help others recognize it; you can still report without one." : "A clear photo helps the owner identify the item. Cover ID numbers and other personal information before uploading."} Images upload when you submit.</span>
         </label>
         {photos.length > 0 && <div className="image-preview-grid">{photos.map(({ file, preview }, index) => <div className="image-preview-card" key={`${file.name}-${index}`}><Image src={preview} width={300} height={130} unoptimized alt={`Selected photo ${index + 1}`} /><button type="button" className="button button-outline" onClick={() => { URL.revokeObjectURL(preview); previewUrls.current.delete(preview); setPhotos((current) => current.filter((_, fileIndex) => fileIndex !== index)); }}>Remove</button></div>)}</div>}
       </div>
