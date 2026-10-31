@@ -24,6 +24,7 @@ export default function ProfileEditor({ user, canEdit }: { user: ProfileData; ca
   const [phoneStep, setPhoneStep] = useState<"phone" | "otp">("phone");
   const [phoneMessage, setPhoneMessage] = useState("");
   const [phoneLoading, setPhoneLoading] = useState(false);
+  const [developmentPhoneCode, setDevelopmentPhoneCode] = useState("");
 
   async function uploadPhoto(file?: File) {
     if (!file || !canEdit) return;
@@ -79,8 +80,9 @@ export default function ProfileEditor({ user, canEdit }: { user: ProfileData; ca
         return;
       }
       setNewPhone(normalizedPhone);
+      setDevelopmentPhoneCode(result.developmentCode ?? "");
       setPhoneStep("otp");
-      setPhoneMessage("Code generated. Check the local Next.js terminal; no SMS is sent.");
+      setPhoneMessage(result.message ?? "Verification code sent.");
     } catch {
       setPhoneMessage("Could not send a verification code. Please try again.");
     } finally {
@@ -106,6 +108,7 @@ export default function ProfileEditor({ user, canEdit }: { user: ProfileData; ca
       setChangingPhone(false);
       setPhoneStep("phone");
       setPhoneCode("");
+      setDevelopmentPhoneCode("");
       setNewPhone("");
       setPhoneMessage("Your new phone number is verified. The previous number has been removed from this account.");
       router.refresh();
@@ -173,7 +176,8 @@ export default function ProfileEditor({ user, canEdit }: { user: ProfileData; ca
           <p className="auth-help">Your current number stays on the account until you verify the new one.</p>
           <div className="button-row"><button className="button button-primary" type="submit" disabled={phoneLoading}>{phoneLoading ? "Sending…" : "Send verification code"}</button><button className="button button-outline" type="button" onClick={() => setChangingPhone(false)}>Cancel</button></div>
         </form> : <form className="phone-change-form" onSubmit={verifyNewPhone}>
-          <p className="auth-help">Enter the six-digit code for {newPhone}. Check the local server terminal.</p>
+          <p className="auth-help">Enter the six-digit code sent to {newPhone}.</p>
+          {developmentPhoneCode && <p className="local-dev-code" role="status">Local development code: <strong>{developmentPhoneCode}</strong><span>Expires in 5 minutes.</span></p>}
           <label className="auth-field">Verification code<input type="text" inputMode="numeric" autoComplete="one-time-code" value={phoneCode} onChange={(event) => setPhoneCode(event.target.value.replace(/\D/g, "").slice(0, 6))} maxLength={6} required /></label>
           <div className="button-row"><button className="button button-primary" type="submit" disabled={phoneLoading || phoneCode.length !== 6}>{phoneLoading ? "Verifying…" : "Verify new number"}</button><button className="button button-outline" type="button" onClick={() => { setPhoneStep("phone"); setPhoneCode(""); setPhoneMessage(""); }}>Change number</button></div>
         </form>)}

@@ -3,12 +3,13 @@ import { handleApiError } from "@/lib/api/handle-error";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
 import { moderationReviewSchema } from "@/lib/items/report-validation";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 
 export const runtime = "nodejs";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (request.headers.get("origin") !== new URL(request.url).origin) return Response.json({ message: "This request is not allowed." }, { status: 403 });
+    if (!isSameOriginRequest(request)) return Response.json({ message: "We couldn’t verify this page request. Refresh REVOK and try again." }, { status: 403 });
     const admin = await requireAdmin();
     const limit = checkRateLimit(hashRateLimitKey("item-review", admin.id), 60, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);

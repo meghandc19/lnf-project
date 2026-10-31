@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { ApiError } from "@/lib/api/errors";
+import { canModerateTarget } from "./admin-policy";
 
 export type UserAdminAction =
   | "RESTRICT"
@@ -8,15 +10,25 @@ export type UserAdminAction =
 
 export async function performUserAdminAction(
   actorId: string,
+  actorRole: "ADMIN" | "SUPER_ADMIN",
   targetUserId: string,
   action: UserAdminAction,
   reason = "No reason provided",
 ) {
   if (actorId === targetUserId) {
-    throw new Error("Administrators cannot modify their own account.");
+    throw new ApiError(400, "SELF_ACCOUNT_ACTION", "Administrators cannot modify their own account.");
   }
 
   return prisma.$transaction(async (tx) => {
+    const target = await tx.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, name: true, username: true, role: true, status: true },
+    });
+    if (!target) throw new ApiError(404, "USER_NOT_FOUND", "User not found.");
+    if (!canModerateTarget(actorRole, target.role)) {
+      throw new ApiError(403, "FORBIDDEN", "Only the Super Admin can manage administrator accounts.");
+    }
+
     // RESTORE / RESTRICT / BAN
     if (action !== "DELETE") {
       const status =
@@ -62,19 +74,7 @@ export async function performUserAdminAction(
       return user;
     }
 
-    // Get user before permanently deleting anything.
-    const user = await tx.user.findUnique({
-      where: { id: targetUserId },
-      select: {
-        id: true,
-        name: true,
-        username: true,
-      },
-    });
-
-    if (!user) {
-      throw new Error("User not found.");
-    }
+    const user = target;
 
     // Preserve minimal deletion record.
     await tx.userDeletionRecord.create({

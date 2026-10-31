@@ -15,7 +15,7 @@ export default function AboutPage() {
           <article><span className="principle-number">02</span><h2>Respect privacy</h2><p>Avoid publishing private contact information or precise home locations.</p></article>
           <article><span className="principle-number">03</span><h2>Use good judgment</h2><p>Potential matches are only a starting point. Confirm details carefully and meet in a public place.</p></article>
         </section>
-        <div className="notice-card"><strong>What is available today?</strong><p>Authentication and account access are implemented. Item reporting, searchable listings, matching, claims, and messaging are still in development.</p></div>
+        <div className="notice-card"><strong>What is available today?</strong><p>Members can submit reports, search approved active items, see possible matches on lost reports, and send claim requests. Private in-app replies and steward handovers are still in development.</p></div>
         <Link className="text-link" href="/how-it-works">See how REVOK is planned to work <span aria-hidden="true">→</span></Link>
       </main>
       <SiteFooter />

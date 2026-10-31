@@ -11,7 +11,7 @@ type LoginMethod = "username" | "phone";
 
 function returnPath() {
   const requested = new URL(window.location.href).searchParams.get("callbackURL");
-  if (!requested) return "/";
+  if (!requested) return "/auth/continue";
   try {
     const target = new URL(requested, window.location.origin);
     return target.origin === window.location.origin

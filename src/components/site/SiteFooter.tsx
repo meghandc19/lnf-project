@@ -23,7 +23,7 @@ export default async function SiteFooter() {
         </div>
         <div className="footer-links">
           <strong>Explore</strong>
-          <Link href="/items">Search lost items</Link>
+          <Link href="/items">Search Items</Link>
           <Link href="/report/lost">Report lost</Link>
           <Link href="/report/found">Report found</Link>
         </div>

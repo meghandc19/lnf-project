@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import AccountMenu from "@/components/site/AccountMenu";
+import ResponsiveNav from "@/components/site/ResponsiveNav";
 import { requireCanBrowse } from "@/lib/auth/guards";
 
-export default async function SiteHeader() {
+export default async function SiteHeader({ home = false }: { home?: boolean }) {
   let user = null;
   try {
     user = await requireCanBrowse();
@@ -12,18 +13,13 @@ export default async function SiteHeader() {
   }
 
   return (
-    <header className="site-header">
+    <header className={`site-header${home ? " site-header-home" : ""}`}>
       <div className="header-inner">
         <Link href="/" className="brand" aria-label="REVOK home">
           <Image src="/img/revok-logo.png" width={68} height={68} alt="" priority className="brand-logo" />
           <span>REVOK</span>
         </Link>
-        <nav className="main-nav" aria-label="Main navigation">
-          <Link href="/">Home</Link>
-          <Link href="/items">Search lost items</Link>
-          <Link href="/how-it-works">How it works</Link>
-          <Link href="/about">About</Link>
-        </nav>
+        <ResponsiveNav authenticated={Boolean(user)} />
         <div className="header-actions">
           {user ? (
             <>

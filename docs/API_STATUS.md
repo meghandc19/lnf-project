@@ -24,11 +24,16 @@ Better Auth rate rules: username sign-in 5/minute; phone/password sign-in 5/minu
 
 | Endpoint | Methods | Authorization |
 |---|---|---|
-| `/api/admin/users` | `GET` | Shared server-side guard requires active ADMIN or SUPER_ADMIN. Returns admin user listing. |
-| `/api/admin/users/[userId]` | `PATCH` | Shared server-side guard; supports `RESTRICT`, `BAN`, `RESTORE`, and `DELETE`. |
+| `/api/admin/users` | `GET` | Requires active ADMIN or SUPER_ADMIN; supports bounded name/username search and status/role filters, returns a minimal account projection, and is rate-limited to 300 requests/hour per admin. |
+| `/api/admin/users/[userId]` | `GET` | Requires active ADMIN or SUPER_ADMIN; rate-limited to 300/hour per admin; returns the account phone and lost/found report status summaries with claim counts, excluding private verification details. |
+| `/api/admin/users/[userId]` | `PATCH` | Same-origin, rate-limited, server role-aware status moderation: ADMIN can target USER accounts; SUPER_ADMIN can target USER/ADMIN accounts; SUPER_ADMIN targets are always excluded. Supports `RESTRICT`, `BAN`, `RESTORE`, and `DELETE`; actions are audited. |
+| `/api/admin/users/[userId]/role` | `PATCH` | SUPER_ADMIN only, same-origin, 10/hour; sets eligible active verified users to ADMIN or removes an ADMIN role to USER. SUPER_ADMIN cannot be assigned through this route. Audited; target sessions are revoked. |
+| `/api/admin/super-admin/transfer` | `POST` | SUPER_ADMIN only, same-origin, one/hour; requires the actor's signed-in email and exact phrase, and transfers ownership atomically to an eligible active Admin. Audited; both sessions are revoked. |
+
+Super Admin can be provisioned by the operator command or, when `REVOK_SUPER_ADMIN_EMAIL` is configured, on the active verified Google account's next sign-in. The sign-in path uses a PostgreSQL advisory lock and a separate durable audit marker; it runs once and does not change account status or delete report data. Runtime provisioning has not yet been exercised against the local database in this pass. No schema migration is required.
 | `/api/admin/items/[id]?type=LOST|FOUND` | `PATCH` | Requires active ADMIN or SUPER_ADMIN server-side, same-origin, and is rate-limited to 60 reviews/hour per admin. Supports APPROVED, FLAGGED, and BLOCKED; records moderation and audit events. |
 
-Admin pages `/admin`, `/admin/reports`, and `/admin/test-actions` use server-side active-admin checks. The report queue omits owner contact and private verification details. Pending/flagged images are available only to active admins or the report owner. UI restrictions are not relied on for authorization.
+Admin pages `/admin`, `/admin/reports`, and `/admin/test-actions` use server-side active-admin checks. `/admin` displays real database counts and role-aware account controls. Recent security audit events and role-management controls are Super Admin only. The report queue omits owner contact and private verification details. Pending/flagged images are available only to active admins or the report owner. UI restrictions are not relied on for authorization.
 
 ## Development verification routes
 

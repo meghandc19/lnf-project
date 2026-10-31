@@ -8,6 +8,7 @@ const validReport = {
   description: "A dark green backpack with a small stitched patch.",
   location: "Main library",
   category: "Wallets & bags",
+  color: "Green",
   occurredAt: "2026-10-20T14:30:00.000Z",
 };
 
@@ -22,6 +23,14 @@ test("report validation rejects short descriptions, unknown categories, and malf
   assert.equal(reportSchema.safeParse({ ...validReport, description: "short" }).success, false);
   assert.equal(reportSchema.safeParse({ ...validReport, category: "Other category" }).success, false);
   assert.equal(reportSchema.safeParse({ ...validReport, occurredAt: "tomorrow" }).success, false);
+  assert.equal(reportSchema.safeParse({ ...validReport, color: "" }).success, false);
+});
+
+test("Other item type stays optional and Jewellery is a supported category", () => {
+  assert.equal(reportSchema.safeParse({ ...validReport, category: "Other" }).success, true);
+  assert.equal(reportSchema.safeParse({ ...validReport, category: "Other", otherItemType: "Umbrella" }).success, true);
+  assert.equal(reportSchema.safeParse({ ...validReport, category: "Jewellery" }).success, true);
+  assert.equal(reportSchema.safeParse({ ...validReport, category: "Accessories" }).success, true);
 });
 
 test("found report accepts only the supported custody values", () => {

@@ -29,7 +29,7 @@ export default async function CompleteGoogleSignupPage() {
         <div className="auth-card">
           <p className="eyebrow">Finish setting up</p>
           <h2>Complete your account</h2>
-          <p className="auth-card-intro">Your Google account is connected as {user.email}. Your username is permanent after setup. Phone verification currently uses a local development OTP.</p>
+          <p className="auth-card-intro">Your Google account is connected as {user.email}. Choose a permanent username, then verify your phone.</p>
           <GoogleAccountSetup initialUsername={user.username ?? ""} initialPhone={user.phoneNumber ?? ""} phoneVerified={user.phoneNumberVerified} />
         </div>
       </section>

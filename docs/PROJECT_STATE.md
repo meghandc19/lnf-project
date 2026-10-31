@@ -1,6 +1,6 @@
 # REVOK Project State
 
-Last verified: 2026-10-28
+Last verified: 2026-10-29
 
 ## Project goal
 
@@ -37,6 +37,10 @@ Build a community lost-and-found application for reporting, searching, matching,
 - Custom limiter keys hash user/phone identifiers. The limiter is process-local, resets on restart, and is not suitable for coordinating multiple instances.
 - Shared guards load the current account status from PostgreSQL. `ACTIVE` and `RESTRICTED` accounts may authenticate and browse; sensitive actions require `ACTIVE`; `BANNED` and `DELETED` accounts cannot create sessions or access guarded routes. Banning a user revokes existing sessions.
 - Admin APIs and pages perform server-side role and active-status checks. The admin test action page is also protected server-side.
+- Admin authorization uses the database-backed `USER`, `ADMIN`, and `SUPER_ADMIN` roles. Ordinary admins may moderate normal accounts and reports; the Super Admin alone may appoint/remove admins, transfer ownership, and view security audit activity. Role/status actions validate on the server, require same-origin for mutations, use per-admin in-memory limits, and write audit rows.
+- `REVOK_SUPER_ADMIN_EMAIL` may identify the dedicated owner account. During that account's sign-in, a Better Auth session hook verifies the exact email, active status, email verification, and linked Google provider, then promotes it in an audited PostgreSQL transaction protected by an advisory lock and a permanent audit marker. This also reconciles a different earlier bootstrap owner once; later ownership transfers remain explicit. The operator bootstrap command remains available. Runtime sign-in provisioning has not yet been exercised against the local database in this pass.
+- Ownership transfer is a separate Super Admin-only operation to an existing active Admin with a username and verified email or phone. It requires a typed phrase and matching signed-in email, updates both roles atomically, revokes both users' sessions, and records the event. Role changes and bootstrap also revoke affected sessions. Ordinary role tools cannot modify a Super Admin account, preventing demotion or restriction of the last Super Admin through user-management routes.
+- `/admin` shows database counts for users, account statuses, deletion records, lost/found reports, and reports awaiting review. Its guarded user-details endpoint shows phone number, lost/found report status and moderation summaries, and claim counts without returning private verification details. It searches and filters accounts through a guarded API. Recent account, role, and report moderation audit activity and role-management controls are visible only to Super Admins. The dashboard does not yet cover claims management, chat, settings, or comprehensive security events.
 - Trusted origins include localhost, the origin derived from `BETTER_AUTH_URL` when valid, and an optional private/local `REVOK_LOCAL_NETWORK_ORIGIN` only in development. No production domain is hard-coded.
 
 ### Lost and found
@@ -50,13 +54,13 @@ Build a community lost-and-found application for reporting, searching, matching,
 
 ## Implemented routes and pages
 
-- `/`, `/items`, `/items/lost/[id]`, `/items/found/[id]`, `/how-it-works`, `/about`, `/report/lost`, `/report/found`, `/login`, `/register`, `/register/complete`, `/profile`, `/dashboard`, `/dashboard/reports/[type]/[id]/edit`, `/admin`, `/admin/reports`, `/admin/test-actions` (redirects to `/admin`)
+- `/`, `/items`, `/items/lost/[id]`, `/items/found/[id]`, `/how-it-works`, `/about`, `/report/lost`, `/report/found`, `/login`, `/register`, `/register/complete`, `/auth/continue` (server-side role-based post-login redirect), `/profile`, `/dashboard`, `/dashboard/reports/[type]/[id]/edit`, `/admin`, `/admin/reports`, `/admin/test-actions` (redirects to `/admin`)
 - `/api/auth/[...all]`
 - `/api/account/setup`, `/api/account/username`, `/api/account/phone/send-otp`, `/api/account/phone/verify`
 - `PATCH /api/account/profile`, `POST /api/account/profile/photo`
 - `POST /api/items` creates lost/found reports; `GET /api/items` returns a safe public projection of active approved reports; `/api/items/[id]?type=...` supports safe detail access and owner-checked patch/soft-delete; `GET /api/uploads/items/[filename]` serves authorized owner/approved images.
 - `PATCH /api/admin/items/[id]?type=...` lets an active admin approve, flag, or block a report and writes moderation/audit events.
-- `/api/admin/users`, `/api/admin/users/[userId]`
+- `/api/admin/users` (search/filter), `/api/admin/users/[userId]` (GET admin detail; PATCH status actions), `/api/admin/users/[userId]/role`, `/api/admin/super-admin/transfer`
 - `/api/test/protected` and `/api/test/active` are development verification routes.
 
 The profile-about migration and report migrations `20261028120000_expand_item_reports` and `20261028171254_expand_item_reports` are applied to the configured local PostgreSQL database at `localhost:5432`; production migration status is not known and must be checked during deployment. The report migration adds nullable fields to the existing report models; it does not replace authentication or report tables.
@@ -68,6 +72,7 @@ The profile-about migration and report migrations `20261028120000_expand_item_re
 - Item images use local `.data/uploads/items` storage by default in development. Production requires `UPLOAD_STORAGE=s3` and S3-compatible credentials; this pass did not test a real object-store account or production bucket. Profile photos remain local under `public/uploads`.
 - Phone-based Google OAuth still depends on matching local provider callback configuration.
 - Google OAuth requires configured credentials and callback settings; credential values have not been inspected or reported here.
+- Set `REVOK_SUPER_ADMIN_EMAIL` in the ignored local `.env` file before testing automatic Super Admin setup; sign out and sign in again to create a session and trigger the one-time promotion. Existing login callback destinations are preserved; a normal login redirects Admins to `/admin`.
 - Production SMS/OTP delivery, shared rate-limit storage, proxy/IP trust configuration, and multi-instance abuse controls remain unresolved.
 - Authentication behavior has not been regression-tested against live Google credentials, a configured database, or a real SMS provider in this hardening pass.
 - Matching, claims, handover, messaging, notifications, and moderation management are not implemented.
@@ -85,3 +90,4 @@ The profile-about migration and report migrations `20261028120000_expand_item_re
 - Potential matches do not prove ownership.
 - Responsive behavior is implemented through CSS breakpoints; physical-device visual review has not been verified.
 - The homepage statically imports the local banner asset so Next.js emits a content-hashed image URL when the file changes.
+- The homepage renders directly without a blocking intro overlay or intro video request; the regular banner remains in place.

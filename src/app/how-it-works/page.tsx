@@ -3,9 +3,9 @@ import SiteFooter from "@/components/site/SiteFooter";
 import SiteHeader from "@/components/site/SiteHeader";
 
 const stages = [
-  ["01", "Report an item", "Describe what was lost or found, when, and in a general area. Reporting forms are still being developed."],
-  ["02", "Browse community reports", "Search and filters will help people compare real reports. Item listings and search are not available yet."],
-  ["03", "Arrange a careful handover", "When the claim and contact tools are ready, people will be able to coordinate a return. For now, use public places and protect your private details."],
+  ["01", "Report an item", "Share what was lost or found, when, and in a general public area. Reports stay private until approved."],
+  ["02", "Browse community reports", "Search approved active reports by type, category, keywords, location, and date. Possible matches are suggestions to review carefully."],
+  ["03", "Send a claim request", "For a found item, explain privately why you believe it belongs to you. The finder can review your request from their dashboard. In-app replies and handover tools are not available yet."],
 ];
 
 export default function HowItWorksPage() {
@@ -24,8 +24,8 @@ export default function HowItWorksPage() {
             </article>
           ))}
         </div>
-        <div className="notice-card"><strong>Current status</strong><p>Item reports, search, matching, claims, and handover tools are not live yet. No report can be submitted or found through REVOK today.</p></div>
-        <div className="button-row"><Link className="button button-primary" href="/register">Create an account <span aria-hidden="true">↗</span></Link><Link className="button button-outline" href="/items">View current listings</Link></div>
+        <div className="notice-card"><strong>Current status</strong><p>Approved reports, Search Items, possible match suggestions, and claim requests are available. In-app messaging and steward handovers are still in development.</p></div>
+        <div className="button-row"><Link className="button button-primary" href="/register">Create an account <span aria-hidden="true">↗</span></Link><Link className="button button-outline" href="/items">Search Items</Link></div>
       </main>
       <SiteFooter />
     </div>

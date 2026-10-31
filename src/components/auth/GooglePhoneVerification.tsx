@@ -11,6 +11,7 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [developmentCode, setDevelopmentCode] = useState("");
 
   async function sendOtp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,8 +35,9 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
         return;
       }
       setPhone(normalizedPhone);
+      setDevelopmentCode(result.developmentCode ?? "");
       setStep("otp");
-      setMessage("A development code was generated. Check the local Next.js terminal; no SMS is sent.");
+      setMessage(result.message ?? "Verification code sent.");
     } catch {
       setMessage("Could not prepare a verification code. Please try again.");
     } finally {
@@ -47,6 +49,7 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
     event.preventDefault();
     setLoading(true);
     setMessage("");
+    let navigating = false;
     try {
       const response = await fetch("/api/account/phone/verify", {
         method: "POST",
@@ -55,15 +58,15 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
       });
       const result = await response.json();
       if (!response.ok) {
-        setMessage(result.message ?? result.error ?? "That code is invalid or expired. Check the terminal and try again.");
+        setMessage(result.message ?? result.error ?? "That code is invalid or expired. Request a new code and try again.");
         return;
       }
+      navigating = true;
       router.replace("/");
-      router.refresh();
     } catch {
       setMessage("Could not verify that code. Please try again.");
     } finally {
-      setLoading(false);
+      if (!navigating) setLoading(false);
     }
   }
 
@@ -74,17 +77,18 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
           <label className="auth-field" htmlFor="google-signup-phone">Phone number
             <input id="google-signup-phone" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="98765 43210" required />
           </label>
-          <p className="auth-help">Local testing prints the code in the development server terminal. No SMS is sent.</p>
+          <p className="auth-help">We’ll send a six-digit verification code to this number.</p>
           <button className="auth-submit" type="submit" disabled={loading || !phone}>{loading ? "Preparing code…" : "Send verification code"}</button>
         </form>
       ) : (
         <form className="auth-form" onSubmit={verifyPhone}>
-          <p className="auth-help">Enter the six-digit code printed for {phone} in the local development terminal.</p>
+          <p className="auth-help">Enter the six-digit code sent to {phone}.</p>
+          {developmentCode && <p className="local-dev-code" role="status">Local development code: <strong>{developmentCode}</strong><span>Expires in 5 minutes.</span></p>}
           <label className="auth-field" htmlFor="google-signup-otp">Verification code
             <input id="google-signup-otp" type="text" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" maxLength={6} required />
           </label>
           <button className="auth-submit" type="submit" disabled={loading || code.length !== 6}>{loading ? "Verifying…" : "Verify phone"}</button>
-          <button className="button button-outline" type="button" onClick={() => { setStep("phone"); setCode(""); setMessage(""); }}>Change phone number</button>
+          <button className="button button-outline" type="button" onClick={() => { setStep("phone"); setCode(""); setMessage(""); setDevelopmentCode(""); }}>Change phone number</button>
         </form>
       )}
       {message && <p className="auth-message" role="status" aria-live="polite">{message}</p>}

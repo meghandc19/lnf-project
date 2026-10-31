@@ -5,6 +5,7 @@ export const ITEM_CATEGORIES = [
   "Electronics",
   "ID & documents",
   "Keys",
+  "Jewellery",
   "Wallets & bags",
   "Other",
 ] as const;

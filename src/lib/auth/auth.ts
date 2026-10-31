@@ -4,10 +4,19 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { phoneNumber, username } from "better-auth/plugins";
 import { prisma } from "@/lib/prisma";
 import { deliverPhoneOtp } from "@/lib/auth/sms";
+import { ensureConfiguredSuperAdmin } from "@/lib/auth/configured-super-admin";
 import { isIP } from "node:net";
+import { networkInterfaces } from "node:os";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const developmentHosts = [
+  "localhost",
+  "127.0.0.1",
+  ...Object.values(networkInterfaces()).flatMap((entries) =>
+    (entries ?? []).filter((entry) => entry.family === "IPv4" && !entry.internal).map((entry) => entry.address),
+  ),
+];
 const configuredAuthOrigin = (() => {
   if (!process.env.BETTER_AUTH_URL) return undefined;
   try {
@@ -43,13 +52,28 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
 
-  baseURL: process.env.BETTER_AUTH_URL,
-  
-  trustedOrigins: [
-    "http://localhost:3000",
-    ...(configuredAuthOrigin ? [configuredAuthOrigin] : []),
-    ...(configuredLocalNetworkOrigin ? [configuredLocalNetworkOrigin] : []),
-  ],
+  baseURL: process.env.NODE_ENV === "development"
+    ? {
+        allowedHosts: developmentHosts,
+        fallback: configuredAuthOrigin ?? `http://localhost:${process.env.PORT ?? "3000"}`,
+        protocol: "http",
+      }
+    : process.env.BETTER_AUTH_URL,
+
+  trustedOrigins: (request) => {
+    const requestOrigin = request ? new URL(request.url).origin : undefined;
+    const requestUrl = request ? new URL(request.url) : undefined;
+    const requestHostIsLocal = Boolean(requestUrl && developmentHosts.includes(requestUrl.hostname.toLowerCase()));
+    const developmentOrigin = process.env.NODE_ENV === "development" && requestUrl?.protocol === "http:" && requestHostIsLocal
+      ? requestOrigin
+      : undefined;
+    return [
+      "http://localhost:3000",
+      ...(configuredAuthOrigin ? [configuredAuthOrigin] : []),
+      ...(configuredLocalNetworkOrigin ? [configuredLocalNetworkOrigin] : []),
+      ...(developmentOrigin ? [developmentOrigin] : []),
+    ];
+  },
 
   rateLimit: {
     enabled: true,
@@ -119,6 +143,8 @@ export const auth = betterAuth({
               message: "This account is not permitted to sign in.",
             });
           }
+
+          await ensureConfiguredSuperAdmin(session.userId);
         },
       },
     },

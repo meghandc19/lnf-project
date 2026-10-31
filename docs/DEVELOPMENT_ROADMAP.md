@@ -58,12 +58,16 @@ Account setup note: phone signup chooses an available immutable username after O
 - [ ] Message moderation
 
 ## Phase 7 - Administration
-- [ ] Admin dashboard
-- [ ] User moderation
-- [ ] Report moderation
+- [x] Database-backed admin overview and account search/filter
+- [x] User restriction, ban, restore, and deletion with server-side role checks
+- [x] Report moderation and audit records
+- [x] Super Admin bootstrap, Admin appointment/removal, and deliberate ownership transfer
+- [x] Super Admin-only recent account security audit view
 - [ ] Claims management
-- [ ] Audit logs
-- [ ] Security events
+- [ ] Community settings management
+- [ ] Comprehensive security-event monitoring and alerting
+
+Admin status: the dedicated owner can be promoted once during verified Google sign-in when `REVOK_SUPER_ADMIN_EMAIL` is configured; the explicit bootstrap command remains available. Admin pages/APIs retain server-side authorization. Admin user details include phone and report status summaries while excluding private verification details. Runtime owner provisioning and physical browser checks remain pending. Admin custom rate limits use in-memory storage and need a shared production store for multi-instance deployments. No database schema migration was added.
 
 ## Phase 8 - Intelligence
 - [ ] AI moderation

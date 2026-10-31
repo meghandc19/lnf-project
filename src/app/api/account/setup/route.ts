@@ -106,6 +106,13 @@ export async function POST(request: Request) {
       message: "Account created successfully.",
     });
   } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return Response.json({
+        ok: false,
+        error: "USERNAME_TAKEN",
+        message: "That username is already taken. Choose another one.",
+      }, { status: 409 });
+    }
     return handleApiError(error);
   }
 }

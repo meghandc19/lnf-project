@@ -7,6 +7,7 @@ export const reportSchema = z.object({
   description: z.string().trim().min(10).max(2000),
   location: z.string().trim().min(3).max(180),
   category: z.enum(ITEM_CATEGORIES),
+  otherItemType: z.string().trim().max(80).optional(),
   subcategory: z.string().trim().max(80).optional(),
   brand: z.string().trim().max(100).optional(),
   model: z.string().trim().max(100).optional(),
@@ -15,10 +16,15 @@ export const reportSchema = z.object({
   identifyingMarks: z.string().trim().max(500).optional(),
   privateDetails: z.string().trim().max(1000).optional(),
   approximateTime: z.string().trim().max(80).optional(),
+  occurredAtApproximate: z.boolean().optional(),
   locationDetails: z.string().trim().max(300).optional(),
   contactedAbout: z.string().trim().max(200).optional(),
   custodyStatus: z.enum(["WITH_FINDER", "SECURITY_OFFICE", "HANDED_OVER", "UNKNOWN"]).optional(),
   occurredAt: z.iso.datetime({ offset: true }).transform((value) => new Date(value)),
+}).superRefine((report, context) => {
+  if (report.type === "LOST" && !report.color?.trim()) {
+    context.addIssue({ code: "custom", path: ["color"], message: "Color is required for lost item reports." });
+  }
 });
 
 export const editReportSchema = z.object({

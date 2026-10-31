@@ -1,63 +1,108 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import SearchControls from "@/components/items/SearchControls";
 import SiteFooter from "@/components/site/SiteFooter";
 import SiteHeader from "@/components/site/SiteHeader";
 import { prisma } from "@/lib/prisma";
 import { ITEM_CATEGORIES } from "@/lib/items/categories";
+import { normalizeSearchText, searchRelevance, searchTokenVariants } from "@/lib/items/matching";
+import type { Prisma } from "@/generated/prisma/client";
 
-type Params = { q?: string; type?: string; category?: string; color?: string; location?: string; brand?: string; from?: string; to?: string; sort?: string; page?: string };
+export const metadata: Metadata = {
+  title: "Search Items | REVOK",
+  description: "Search approved lost and found items in your community.",
+};
+
+type Params = { q?: string; type?: string; category?: string; location?: string; from?: string; to?: string; sort?: string; page?: string };
 const pageSize = 24;
+const maxPage = 40;
+const searchableFields = ["title", "description", "brand", "model", "subcategory"] as const;
+
+function contains(value: string) {
+  return { contains: value.slice(0, 100), mode: "insensitive" as const };
+}
 
 export default async function ItemsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const query = params.q?.trim().slice(0, 100) ?? "";
-  const type = params.type === "FOUND" || params.type === "LOST" ? params.type : "ALL";
-  const page = Math.max(1, Math.min(100, Number(params.page) || 1));
-  const contains = (value: string) => ({ contains: value.slice(0, 100), mode: "insensitive" as const });
-  const common: Record<string, unknown>[] = [];
-  if (query) common.push({ OR: [{ title: contains(query) }, { description: contains(query) }, { brand: contains(query) }, { model: contains(query) }, { subcategory: contains(query) }, { category: { name: contains(query) } }] });
-  if (params.category && ITEM_CATEGORIES.includes(params.category as (typeof ITEM_CATEGORIES)[number])) common.push({ category: { name: params.category } });
-  if (params.color?.trim()) common.push({ color: contains(params.color.trim()) });
-  if (params.location?.trim()) common.push({ OR: [{ location: contains(params.location.trim()) }, { locationDetails: contains(params.location.trim()) }] });
-  if (params.brand?.trim()) common.push({ OR: [{ brand: contains(params.brand.trim()) }, { model: contains(params.brand.trim()) }] });
+  const query = (params.q ?? "").trim().slice(0, 100);
+  const type: "FOUND" | "LOST" = params.type === "LOST" ? "LOST" : "FOUND";
+  const sort: "newest" | "oldest" | "relevance" = params.sort === "oldest" ? "oldest" : params.sort === "relevance" && query ? "relevance" : "newest";
+  const page = Math.max(1, Math.min(maxPage, Number(params.page) || 1));
+  const normalizedQuery = normalizeSearchText(query);
+  const tokens = normalizedQuery.split(" ").filter(Boolean).slice(0, 8);
+  const filters: Record<string, unknown>[] = [];
+
+  if (tokens.length) {
+    for (const token of tokens) {
+      const alternatives = searchTokenVariants(token);
+      filters.push({ OR: alternatives.flatMap((variant) => [
+        ...searchableFields.map((field) => ({ [field]: contains(variant) })),
+        { category: { name: contains(variant) } },
+      ]) });
+    }
+  }
+  if (params.category && ITEM_CATEGORIES.includes(params.category as (typeof ITEM_CATEGORIES)[number])) filters.push({ category: { name: params.category } });
+  if (params.location?.trim()) filters.push({ OR: [{ location: contains(params.location.trim()) }, { locationDetails: contains(params.location.trim()) }] });
   const from = params.from && !Number.isNaN(Date.parse(params.from)) ? new Date(params.from) : null;
   const to = params.to && !Number.isNaN(Date.parse(params.to)) ? new Date(`${params.to}T23:59:59.999`) : null;
-  if (from || to) common.push({ [type === "FOUND" ? "foundAt" : "lostAt"]: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } });
-  const where = (kind: "LOST" | "FOUND") => ({ deletedAt: null, status: "ACTIVE" as const, moderation: "APPROVED" as const, AND: common.map((condition) => {
-    if (condition && typeof condition === "object" && Object.hasOwn(condition, "lostAt")) return kind === "LOST" ? condition : { foundAt: (condition as { lostAt: unknown }).lostAt };
-    return condition;
-  }) });
-  const [lost, found] = await Promise.all([
-    type !== "FOUND" ? prisma.lostItem.findMany({ where: where("LOST"), orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { images: true, category: true } }) : [],
-    type !== "LOST" ? prisma.foundItem.findMany({ where: where("FOUND"), orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { images: true, category: true } }) : [],
-  ]);
-  let reports = [...lost.map((report) => ({ ...report, type: "LOST" as const, occurredAt: report.lostAt })), ...found.map((report) => ({ ...report, type: "FOUND" as const, occurredAt: report.foundAt }))];
-  if (params.sort === "relevance" && query) {
-    const needle = query.toLocaleLowerCase();
-    const score = (report: (typeof reports)[number]) => Number(report.title.toLocaleLowerCase().startsWith(needle)) * 6 + Number(report.title.toLocaleLowerCase().includes(needle)) * 4 + Number(!!report.brand?.toLocaleLowerCase().includes(needle)) * 3 + Number(!!report.model?.toLocaleLowerCase().includes(needle)) * 3 + Number(report.category.name.toLocaleLowerCase().includes(needle)) * 2 + Number(report.description.toLocaleLowerCase().includes(needle)) + Number(!!report.subcategory?.toLocaleLowerCase().includes(needle)) * 2;
-    reports = reports.sort((a, b) => score(b) - score(a) || b.createdAt.getTime() - a.createdAt.getTime());
-  }
-  else reports.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  const paramsForLink = new URLSearchParams(Object.entries(params).filter(([key, value]) => key !== "page" && value).map(([key, value]) => [key, value!]));
-  const hasNext = lost.length === pageSize || found.length === pageSize;
+  if (from || to) filters.push({ [type === "FOUND" ? "foundAt" : "lostAt"]: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } });
 
-  return <div className="site-page"><SiteHeader /><main className="subpage-main page-width">
-    <p className="eyebrow">Find items</p><h1 className="page-title">Look for what matters to you.</h1><p className="page-intro">Search approved lost and found reports. Private ownership details are never shown here.</p>
-    <form className="item-search-form item-search-advanced" action="/items">
-      <label>Keywords<input name="q" defaultValue={query} placeholder="Item name, brand, model, or description" maxLength={100} /></label>
-      <label>Report type<select name="type" defaultValue={type}><option value="ALL">Lost and found</option><option value="LOST">Lost</option><option value="FOUND">Found</option></select></label>
-      <label>Category<select name="category" defaultValue={params.category ?? ""}><option value="">All categories</option>{ITEM_CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></label>
-      <label>Color<input name="color" defaultValue={params.color} maxLength={80} /></label>
-      <label>Location or area<input name="location" defaultValue={params.location} maxLength={100} /></label>
-      <label>Brand or model<input name="brand" defaultValue={params.brand} maxLength={100} /></label>
-      <label>From date<input name="from" type="date" defaultValue={params.from} /></label><label>To date<input name="to" type="date" defaultValue={params.to} /></label>
-      <label>Sort<select name="sort" defaultValue={params.sort ?? "newest"}><option value="newest">Newest</option><option value="relevance">Best match</option></select></label>
-      <button className="button button-primary" type="submit">Search</button>{Object.values(params).some(Boolean) && <Link className="button button-outline" href="/items">Clear filters</Link>}
-    </form>
-    {reports.length ? <section className="report-list" aria-label="Approved item reports">{reports.map((report) => <article className="public-report-card" key={`${report.type}-${report.id}`}>
-      <Link href={`/items/${report.type.toLowerCase()}/${report.id}`} aria-label={`View details for ${report.title}`} className="public-report-image-link">{report.images[0] ? <Image src={report.images[0].url} alt="" width={480} height={320} unoptimized className="public-report-image" /> : <div className="public-report-image public-report-placeholder" aria-hidden="true">✳</div>}</Link>
-      <div className="public-report-content"><span className={`report-kind ${report.type === "LOST" ? "report-kind-lost" : "report-kind-found"}`}>{report.type === "LOST" ? "Lost" : "Found"}</span><p className="eyebrow">{report.category.name}{report.subcategory ? ` · ${report.subcategory}` : ""}</p><h2><Link href={`/items/${report.type.toLowerCase()}/${report.id}`}>{report.title}</Link></h2><p>{report.description}</p><div className="public-report-meta"><span>{report.location}</span><time dateTime={report.occurredAt.toISOString()}>{report.occurredAt.toLocaleDateString()}</time></div><Link className="button button-outline" href={`/items/${report.type.toLowerCase()}/${report.id}`}>View details</Link></div>
-    </article>)}</section> : <section className="empty-state" aria-labelledby="empty-title"><span className="empty-symbol" aria-hidden="true">⌕</span><p className="eyebrow">No approved reports found</p><h2 id="empty-title">There are no matching public reports yet.</h2><p>{query ? "Try another search or clear some filters. Reports appear after review." : "New reports remain private to their owner while pending review."}</p><div className="button-row"><Link className="button button-primary" href="/report/lost">Report lost</Link><Link className="button button-outline" href="/report/found">Report found</Link></div></section>}
-    {(page > 1 || hasNext) && <nav className="button-row" aria-label="Search pages">{page > 1 && <Link className="button button-outline" href={`/items?${new URLSearchParams([...paramsForLink, ["page", String(page - 1)]])}`}>Previous</Link>}{hasNext && <Link className="button button-outline" href={`/items?${new URLSearchParams([...paramsForLink, ["page", String(page + 1)]])}`}>More reports</Link>}</nav>}
+  const base = { deletedAt: null, status: "ACTIVE" as const, moderation: "APPROVED" as const, AND: filters };
+  const foundWhere = base as Prisma.FoundItemWhereInput;
+  const lostWhere = base as Prisma.LostItemWhereInput;
+  const relevantFetch = sort === "relevance" ? Math.min(page * pageSize + 1, 1000) : pageSize + 1;
+  const skip = sort === "relevance" ? 0 : (page - 1) * pageSize;
+  const take = sort === "relevance" ? relevantFetch : pageSize + 1;
+  const orderBy = type === "FOUND" ? { foundAt: sort === "oldest" ? "asc" as const : "desc" as const } : { lostAt: sort === "oldest" ? "asc" as const : "desc" as const };
+  const [foundRows, lostRows, total] = type === "FOUND" ? await Promise.all([
+    prisma.foundItem.findMany({ where: foundWhere, orderBy, skip, take, include: { images: { select: { id: true, url: true } }, category: { select: { name: true } } } }),
+    Promise.resolve([] as never[]),
+    prisma.foundItem.count({ where: foundWhere }),
+  ]) : await Promise.all([
+    Promise.resolve([] as never[]),
+    prisma.lostItem.findMany({ where: lostWhere, orderBy, skip, take, include: { images: { select: { id: true, url: true } }, category: { select: { name: true } } } }),
+    prisma.lostItem.count({ where: lostWhere }),
+  ]);
+  let reports = type === "FOUND"
+    ? foundRows.map((report) => ({ ...report, type: "FOUND" as const, occurredAt: report.foundAt }))
+    : lostRows.map((report) => ({ ...report, type: "LOST" as const, occurredAt: report.lostAt }));
+  if (sort === "relevance") {
+    reports.sort((a, b) => searchRelevance(query, [b.title, b.brand, b.model, b.category.name, b.description, b.subcategory]) - searchRelevance(query, [a.title, a.brand, a.model, a.category.name, a.description, a.subcategory]) || b.createdAt.getTime() - a.createdAt.getTime());
+    reports = reports.slice((page - 1) * pageSize, page * pageSize);
+  } else reports = reports.slice(0, pageSize);
+
+  const values = {
+    q: query,
+    type,
+    category: params.category && ITEM_CATEGORIES.includes(params.category as (typeof ITEM_CATEGORIES)[number]) ? params.category : "",
+    sort,
+    location: params.location?.slice(0, 100) ?? "",
+    from: from ? from.toISOString().slice(0, 10) : "",
+    to: to ? params.to ?? "" : "",
+  };
+  const lastPage = Math.min(maxPage, Math.ceil(Math.min(total, maxPage * pageSize) / pageSize));
+
+  return <div className="site-page"><SiteHeader /><main className="subpage-main page-width search-items-page">
+    <p className="eyebrow">Community listings</p>
+    <h1 className="page-title">Search Items</h1>
+    <p className="page-intro">Browse approved {type === "FOUND" ? "found" : "lost"} reports. Private ownership details and contact information are not shown.</p>
+    <SearchControls key={JSON.stringify(values)} values={values} count={total} />
+    {reports.length ? <section className="search-items-grid" aria-label={`${type === "FOUND" ? "Found" : "Lost"} item results`}>
+      {reports.map((report) => <Link href={`/items/${report.type.toLowerCase()}/${report.id}`} className="search-item-card" key={`${report.type}-${report.id}`} aria-label={`${report.type === "FOUND" ? "Found" : "Lost"}: ${report.title}, ${report.category.name}, ${report.location}`}>
+        <span className={`search-item-image-wrap${report.images[0] ? "" : " is-placeholder"}`}>
+          {report.images[0] ? <Image src={report.images[0].url} alt="" fill sizes="(max-width: 650px) 32vw, (max-width: 1100px) 20vw, 16vw" className="search-item-image" unoptimized /> : <span aria-hidden="true">✳</span>}
+          <span className={`report-kind report-kind-${report.type.toLowerCase()}`}>{report.type === "FOUND" ? "Found" : "Lost"}</span>
+        </span>
+        <span className="search-item-card-copy"><strong>{report.title}</strong><span>{report.category.name}</span><span className="search-item-location">{report.location}</span></span>
+      </Link>)}
+    </section> : <section className="empty-state search-items-empty" aria-labelledby="empty-title"><span className="empty-symbol" aria-hidden="true">⌕</span><p className="eyebrow">No {type.toLowerCase()} items found</p><h2 id="empty-title">There are no matching public reports yet.</h2><p>{query ? "Try a shorter search, another spelling, or clear a filter. Reports appear after review." : "New reports remain private to their owner while pending review."}</p><div className="button-row"><Link className="button button-primary" href="/report/lost">Report lost</Link><Link className="button button-outline" href="/report/found">Report found</Link></div></section>}
+    {lastPage > 1 && <nav className="search-pagination" aria-label="Search result pages">{page > 1 && <Link className="button button-outline" href={pageHref(values, page - 1)}>Previous</Link>}<span>Page {page} of {lastPage}</span>{page < lastPage && <Link className="button button-outline" href={pageHref(values, page + 1)}>Next</Link>}</nav>}
   </main><SiteFooter /></div>;
+}
+
+function pageHref(values: { q: string; type: string; category: string; sort: string; location: string; from: string; to: string }, page: number) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries({ ...values, page: String(page) })) if (value && !(key === "sort" && value === "newest")) params.set(key, value);
+  return `/items?${params.toString()}`;
 }

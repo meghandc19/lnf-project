@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,35 @@ export default function RegisterPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [usernameAvailability, setUsernameAvailability] = useState("");
+  const [usernameAvailabilityState, setUsernameAvailabilityState] = useState<"idle" | "checking" | "available" | "taken" | "invalid" | "error">("idle");
+  const [developmentCode, setDevelopmentCode] = useState("");
+
+  useEffect(() => {
+    if (step !== "details") return;
+    const candidate = username.trim();
+    if (!/^[a-zA-Z0-9_.]{3,30}$/.test(candidate)) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setUsernameAvailability("Checking availability...");
+      setUsernameAvailabilityState("checking");
+      try {
+        const response = await fetch(`/api/account/username?username=${encodeURIComponent(candidate)}`, { signal: controller.signal });
+        const result = await response.json();
+        if (controller.signal.aborted) return;
+        setUsernameAvailability(result.message ?? (result.available ? "Username available." : "That username is already taken."));
+        setUsernameAvailabilityState(result.available ? "available" : "taken");
+      } catch {
+        if (!controller.signal.aborted) {
+          setUsernameAvailability("Could not check right now. The server will check when you create the account.");
+          setUsernameAvailabilityState("error");
+        }
+      }
+    }, 350);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [step, username]);
 
   async function signUpWithGoogle() {
     setMessage("");
@@ -45,14 +74,20 @@ export default function RegisterPage() {
 
     const normalizedPhone = normalizeIndianPhone(phoneNumber);
     try {
-      const result = await authClient.phoneNumber.sendOtp({ phoneNumber: normalizedPhone });
-      if (result.error) {
-        setMessage("Could not prepare a verification code. Check the local server and try again.");
+      const response = await fetch("/api/auth/phone/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber: normalizedPhone }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setMessage(result.message ?? "Could not send a verification code. Please try again.");
         return;
       }
       setPhoneNumber(normalizedPhone);
+      setDevelopmentCode(result.developmentCode ?? "");
       setStep("otp");
-      setMessage("A development OTP was generated. Check the local Next.js terminal; no SMS is sent.");
+      setMessage(result.message ?? "Verification code sent.");
     } catch {
       setMessage("Could not prepare a verification code. Please try again.");
     } finally {
@@ -66,7 +101,7 @@ export default function RegisterPage() {
     try {
       const result = await authClient.phoneNumber.verify({ phoneNumber, code: otp });
       if (result.error) {
-        setMessage("That code is invalid or expired. Check the terminal output or request a new code.");
+        setMessage("That code is invalid or expired. Request a new code and try again.");
         return;
       }
       setStep("details");
@@ -81,6 +116,7 @@ export default function RegisterPage() {
   async function finishSignup() {
     setLoading(true);
     setMessage("");
+    let navigating = false;
     try {
       const response = await fetch("/api/account/setup", {
         method: "POST",
@@ -92,12 +128,12 @@ export default function RegisterPage() {
         setMessage(result.message || "Could not create the account. Check the details and try again.");
         return;
       }
+      navigating = true;
       router.push("/");
-      router.refresh();
     } catch {
       setMessage("Could not create the account. Please try again.");
     } finally {
-      setLoading(false);
+      if (!navigating) setLoading(false);
     }
   }
 
@@ -149,19 +185,20 @@ export default function RegisterPage() {
               <label className="auth-field" htmlFor="register-phone">Phone number
                 <input id="register-phone" type="tel" inputMode="tel" autoComplete="tel" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} placeholder="98765 43210" required />
               </label>
-              <p className="auth-help">Local development sends the code to the server terminal only. No SMS provider is contacted.</p>
-              <button className="auth-submit" type="button" onClick={sendOtp} disabled={loading || !phoneNumber}>{loading ? "Preparing code…" : "Generate verification code"}</button>
+              <p className="auth-help">We’ll send a six-digit verification code to this number.</p>
+              <button className="auth-submit" type="button" onClick={sendOtp} disabled={loading || !phoneNumber}>{loading ? "Sending code…" : "Send verification code"}</button>
             </div>
           )}
 
           {step === "otp" && (
             <div className="auth-form">
-              <p className="auth-help">Enter the six-digit code printed in the local development terminal for {phoneNumber}.</p>
+              <p className="auth-help">Enter the six-digit code sent to {phoneNumber}.</p>
+              {developmentCode && <p className="local-dev-code" role="status">Local development code: <strong>{developmentCode}</strong><span>Expires in 5 minutes.</span></p>}
               <label className="auth-field" htmlFor="register-otp">Verification code
                 <input id="register-otp" type="text" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" maxLength={6} required />
               </label>
               <button className="auth-submit" type="button" onClick={verifyOtp} disabled={loading || otp.length !== 6}>{loading ? "Verifying…" : "Verify phone"}</button>
-              <button className="button button-outline" type="button" onClick={() => { setStep("phone"); setMessage(""); setOtp(""); }}>Change phone number</button>
+              <button className="button button-outline" type="button" onClick={() => { setStep("phone"); setMessage(""); setOtp(""); setDevelopmentCode(""); }}>Change phone number</button>
             </div>
           )}
 
@@ -171,14 +208,28 @@ export default function RegisterPage() {
                 <input id="register-name" type="text" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" required />
               </label>
               <label className="auth-field" htmlFor="register-username">Username
-                <input id="register-username" type="text" autoComplete="username" minLength={3} maxLength={30} value={username} onChange={(event) => { setUsername(event.target.value); setUsernameAvailability(""); }} onBlur={checkUsernameAvailability} placeholder="Choose a username" required />
+                <input id="register-username" type="text" autoComplete="username" minLength={3} maxLength={30} value={username} onChange={(event) => {
+                  const value = event.target.value;
+                  const candidate = value.trim();
+                  setUsername(value);
+                  if (!candidate) {
+                    setUsernameAvailability("");
+                    setUsernameAvailabilityState("idle");
+                  } else if (!/^[a-zA-Z0-9_.]{3,30}$/.test(candidate)) {
+                    setUsernameAvailability("Use 3-30 letters, numbers, underscores, or periods.");
+                    setUsernameAvailabilityState("invalid");
+                  } else {
+                    setUsernameAvailability("Checking availability...");
+                    setUsernameAvailabilityState("checking");
+                  }
+                }} onBlur={checkUsernameAvailability} placeholder="Choose a username" required />
               </label>
               <p className="auth-help username-lock-note">Check that your username is available. You can’t change it after account creation.</p>
-              {usernameAvailability && <p className="username-availability" role="status">{usernameAvailability}</p>}
+              {usernameAvailability && <p className={`username-availability username-${usernameAvailabilityState}`} role="status">{usernameAvailability}</p>}
               <label className="auth-field" htmlFor="register-password">Password
                 <input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" minLength={8} required />
               </label>
-              <button className="auth-submit" type="button" onClick={finishSignup} disabled={loading || !name || !username || password.length < 8}>{loading ? "Creating account…" : "Create account"}</button>
+              <button className="auth-submit" type="button" onClick={finishSignup} disabled={loading || !name || !/^[a-zA-Z0-9_.]{3,30}$/.test(username.trim()) || password.length < 8 || usernameAvailabilityState === "checking" || usernameAvailabilityState === "taken"}>{loading ? "Creating account…" : "Create account"}</button>
             </div>
           )}
 

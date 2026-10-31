@@ -11,6 +11,7 @@ import {
   hashRateLimitKey,
   rateLimitResponse,
 } from "@/lib/security/rate-limit";
+import { takeDevelopmentOtp } from "@/lib/auth/sms";
 
 const phoneSchema = z.object({ phoneNumber: indianPhoneSchema });
 
@@ -89,16 +90,6 @@ export async function POST(request: Request) {
     );
   }
 
-  if (process.env.NODE_ENV === "development" && process.env.REVOK_DEV_OTP_TERMINAL !== "true") {
-    return NextResponse.json(
-      {
-        error: "LOCAL_OTP_DISABLED",
-        message: "Local OTP delivery is disabled. Stop the Next.js server, then restart it in its terminal with REVOK_DEV_OTP_TERMINAL=true. No SMS was sent.",
-      },
-      { status: 503 },
-    );
-  }
-
   try {
     await auth.api.sendPhoneNumberOTP({
       body: {
@@ -106,15 +97,21 @@ export async function POST(request: Request) {
       },
     });
 
+    const developmentCode = process.env.NODE_ENV === "development" ? takeDevelopmentOtp(phoneNumber) : undefined;
+    if (process.env.NODE_ENV === "development" && !developmentCode) {
+      throw new Error("The local verification code could not be prepared.");
+    }
+
     return NextResponse.json({
       success: true,
-      message: "OTP sent.",
+      message: developmentCode ? "Local development code ready. It expires in 5 minutes." : "Verification code sent.",
+      ...(developmentCode ? { developmentCode } : {}),
     });
   } catch (error) {
     console.error("SEND PHONE OTP ERROR", { name: error instanceof Error ? error.name : "UnknownError" });
 
     return NextResponse.json(
-      { error: "OTP_DELIVERY_FAILED", message: "The verification code could not be generated. Check that the development server is running with local OTP enabled, then try again." },
+      { error: "OTP_DELIVERY_FAILED", message: "The verification code could not be delivered. Check the SMS provider configuration and try again." },
       { status: 500 },
     );
   }

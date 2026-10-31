@@ -66,3 +66,11 @@ Better Auth handles sessions and the Google, username/password, and phone-number
 Rate limits currently use in-memory storage. They are suitable for local development and a single process, but do not coordinate across server instances or survive restarts. Production deployment needs shared rate-limit storage and verified proxy/IP configuration.
 
 See `docs/PROJECT_STATE.md`, `docs/ARCHITECTURE.md`, `docs/API_STATUS.md`, and `docs/DEVELOPMENT_ROADMAP.md` for verified implementation status and known gaps.
+
+## Admin access
+
+Admin roles are stored in PostgreSQL and checked server-side. Configure `REVOK_SUPER_ADMIN_EMAIL` with the dedicated Gmail address in the local ignored `.env.local`/`.env` file or deployment environment. When that existing active account with a verified email and linked Google provider signs in, Better Auth promotes it to Super Admin in a one-time audited transaction; this also reconciles a different prior bootstrap owner. Later ownership changes use the explicit Super Admin transfer flow. The operator command `npm run admin:bootstrap-super-admin` remains available for initial provisioning before a sign-in. No schema migration is required. After sign-in, Admin and Super Admin accounts are sent to `/admin` by default.
+
+Super Admins can appoint eligible active, verified users as Admins, remove Admin roles, and transfer ownership to an existing eligible Admin after typing an explicit phrase and re-entering their signed-in email. Ordinary Admins can moderate normal users and reports but cannot change Admin or Super Admin accounts. Admin-only user details show verified phone linkage and lost/found report status summaries; private verification details remain hidden. Both admin tiers can see recent account/report counts; audit events and role-management controls are Super Admin only. The admin dashboard currently covers accounts and report review; claims, chat, community settings, and broader security-event monitoring are not implemented.
+
+Bootstrap and custom admin-operation rate limits use in-memory storage. They are appropriate for local development and a single server process; use shared rate-limit storage and coordinate the bootstrap command against the production database before operating multiple application instances.

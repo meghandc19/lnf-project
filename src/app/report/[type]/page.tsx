@@ -24,11 +24,17 @@ export default async function ReportPage({
   return (
     <div className="site-page">
       <SiteHeader />
-      <main className="subpage-main page-width">
-        <p className="eyebrow">{isLost ? "Report a lost item" : "Report a found item"}</p>
-        <h1 className="page-title">{isLost ? "Tell your community what went missing." : "Help someone find what they lost."}</h1>
-        <p className="page-intro">Share the details that can help someone recognize the item. Reports are linked to your account and reviewed before appearing publicly.</p>
-        {canReport ? <section className="report-card"><ReportForm type={isLost ? "LOST" : "FOUND"} /></section> : (
+      <main className={`subpage-main report-page-main page-width${isLost ? " report-page-main-lost" : ""}`}>
+        {isLost ? <>
+          <h1 className="page-title">Report Lost Item</h1>
+          <p className="page-intro">Share a few details to help someone recognize your lost item.</p>
+        </> : <div className="found-page-heading">
+          <Link href="/" className="found-back-link">← Back to home</Link>
+          <p className="eyebrow">Report a found item</p>
+          <h1 className="page-title">Report a Found Item</h1>
+          <p className="page-intro">Found something that belongs to someone else? Help return it safely.</p>
+        </div>}
+        {canReport ? <section className={`report-card${isLost ? " report-card-lost" : ""}`}><ReportForm type={isLost ? "LOST" : "FOUND"} /></section> : (
           <section className="empty-state report-state">
             <span className="empty-symbol" aria-hidden="true">✳</span>
             <p className="eyebrow">{user ? "One more step" : "Sign in to report"}</p>

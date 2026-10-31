@@ -1,12 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { s3Request } from "@/lib/uploads/s3";
+import { s3Request } from "./s3.ts";
 
 export const IMAGE_LIMITS = {
   profile: 8 * 1024 * 1024,
   item: 5 * 1024 * 1024,
+  foundItem: 4 * 1024 * 1024,
+  lostItem: 3 * 1024 * 1024,
 } as const;
+
+export function isAllowedFoundItemPhotoSize(sizeBytes: number) {
+  return sizeBytes > 0 && sizeBytes < IMAGE_LIMITS.foundItem;
+}
 
 const formats = {
   "image/jpeg": { extension: ".jpg", matches: (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff },
@@ -16,6 +22,20 @@ const formats = {
 
 export type ImageMimeType = keyof typeof formats;
 
+const extensionMimes: Record<string, ImageMimeType> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
+
+function imageMimeType(file: File): ImageMimeType | undefined {
+  if (file.type === "image/jpg") return "image/jpeg";
+  if (Object.prototype.hasOwnProperty.call(formats, file.type)) return file.type as ImageMimeType;
+  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+  return extensionMimes[extension];
+}
+
 function storageDriver() {
   const driver = process.env.UPLOAD_STORAGE?.trim().toLowerCase();
   if (process.env.NODE_ENV === "production" && driver !== "s3") throw new Error("Production requires S3-compatible image storage.");
@@ -24,15 +44,16 @@ function storageDriver() {
   throw new Error("Unsupported image storage configuration.");
 }
 export async function validateImage(file: File, maxBytes: number) {
-  if (file.size <= 0 || file.size > maxBytes || !Object.prototype.hasOwnProperty.call(formats, file.type)) {
-    throw new Error("Choose a JPEG, PNG, or WebP image within the size limit.");
-  }
+  const mimeType = imageMimeType(file);
+  if (file.size <= 0) throw new Error("The selected photo is empty. Choose another image.");
+  if (file.size > maxBytes) throw new Error(`Image size exceeded. Use a photo that is ${Math.floor(maxBytes / (1024 * 1024))} MB or smaller.`);
+  if (!mimeType) throw new Error("Use a JPEG, JPG, PNG, or WebP photo.");
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const format = formats[file.type as ImageMimeType];
+  const format = formats[mimeType];
   if (bytes.byteLength !== file.size || !format.matches(bytes)) {
-    throw new Error("The selected file is not a valid image of the declared type.");
+    throw new Error("This file does not match its image type. Choose a valid JPEG, PNG, or WebP photo.");
   }
-  return { bytes, mimeType: file.type as ImageMimeType, extension: format.extension };
+  return { bytes, mimeType, extension: format.extension };
 }
 
 export async function storeImage(scope: "profiles" | "items", file: File, maxBytes: number) {
