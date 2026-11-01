@@ -67,6 +67,8 @@ export async function performUserAdminAction(
           details: {
             targetUsername: user.username,
             reason,
+            previousStatus: target.status,
+            nextStatus: user.status,
           },
         },
       });
@@ -100,6 +102,11 @@ export async function performUserAdminAction(
 
     const lostItemIds = lostItems.map((item) => item.id);
     const foundItemIds = foundItems.map((item) => item.id);
+
+    // Claim disputes and custody requests reference users and reports directly.
+    // The existing permanent deletion flow removes account-linked records first.
+    await tx.userReport.deleteMany({ where: { OR: [{ reporterId: targetUserId }, { reportedUserId: targetUserId }] } });
+    await tx.handoverRequest.deleteMany({ where: { OR: [{ finderId: targetUserId }, { stewardId: targetUserId }, { foundItemId: { in: foundItemIds } }] } });
 
     // Delete claims connected to these items.
     await tx.claim.deleteMany({

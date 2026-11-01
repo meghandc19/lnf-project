@@ -87,7 +87,7 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
     <p className="eyebrow">Community listings</p>
     <h1 className="page-title">Search Items</h1>
     <p className="page-intro">Browse approved {type === "FOUND" ? "found" : "lost"} reports. Private ownership details and contact information are not shown.</p>
-    <SearchControls key={JSON.stringify(values)} values={values} count={total} />
+    <SearchControls values={values} count={total} />
     {reports.length ? <section className="search-items-grid" aria-label={`${type === "FOUND" ? "Found" : "Lost"} item results`}>
       {reports.map((report) => <Link href={`/items/${report.type.toLowerCase()}/${report.id}`} className="search-item-card" key={`${report.type}-${report.id}`} aria-label={`${report.type === "FOUND" ? "Found" : "Lost"}: ${report.title}, ${report.category.name}, ${report.location}`}>
         <span className={`search-item-image-wrap${report.images[0] ? "" : " is-placeholder"}`}>

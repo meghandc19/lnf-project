@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
     const declaredLength = Number(request.headers.get("content-length") ?? 0);
     if (declaredLength > IMAGE_LIMITS.profile + 64 * 1024) {
-      return Response.json({ message: "Profile photos must be 8 MB or smaller." }, { status: 413 });
+      return Response.json({ message: "Profile photos must be 3 MB or smaller." }, { status: 413 });
     }
     const form = await request.formData();
     const file = form.get("image");
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         data: { image: stored.url },
         select: { image: true },
       });
-      const oldKey = user.image?.match(/^\/uploads\/(profiles\/[a-f0-9-]+\.(?:jpg|png|webp))$/i)?.[1];
+      const oldKey = user.image?.match(/^\/uploads\/(profiles\/[a-f0-9-]+\.(?:jpg|png|webp|gif|bmp|avif|heic|heif))$/i)?.[1];
       if (oldKey) {
         try { await removeStoredImage(oldKey); } catch { /* Keep the saved photo valid if old-file cleanup fails. */ }
       }
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       throw error;
     }
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Choose a JPEG")) {
+    if (error instanceof Error && ["Use a JPEG", "Use a supported", "Image size exceeded", "The selected photo", "This file does not match"].some((prefix) => error.message.startsWith(prefix))) {
       return Response.json({ message: error.message }, { status: 400 });
     }
     return handleApiError(error);

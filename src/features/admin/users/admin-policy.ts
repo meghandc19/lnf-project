@@ -1,4 +1,4 @@
-export type AdminRole = "USER" | "ADMIN" | "SUPER_ADMIN";
+export type AdminRole = "USER" | "ADMIN" | "SUPER_ADMIN" | "REVOK_STEWARD";
 
 export function canModerateTarget(actorRole: AdminRole, targetRole: AdminRole) {
   if (targetRole === "SUPER_ADMIN") return false;

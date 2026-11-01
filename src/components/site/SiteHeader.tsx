@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import AccountMenu from "@/components/site/AccountMenu";
 import ResponsiveNav from "@/components/site/ResponsiveNav";
+import NotificationBell from "@/components/site/NotificationBell";
 import { requireCanBrowse } from "@/lib/auth/guards";
 
 export default async function SiteHeader({ home = false }: { home?: boolean }) {
@@ -24,6 +25,7 @@ export default async function SiteHeader({ home = false }: { home?: boolean }) {
           {user ? (
             <>
               <Link href="/dashboard" className="header-dashboard">Dashboard</Link>
+              <NotificationBell />
               <AccountMenu name={user.name} username={user.username} phoneNumber={user.phoneNumber} image={user.image} />
             </>
           ) : (

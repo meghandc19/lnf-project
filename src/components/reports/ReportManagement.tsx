@@ -2,9 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { ITEM_CATEGORIES } from "@/lib/items/categories";
+import { ITEM_CATEGORIES, LOST_ITEM_CATEGORIES } from "@/lib/items/categories";
 
-type ReportFields = { title: string; description: string; location: string; category: string; occurredAt: string; subcategory: string | null; brand: string | null; model: string | null; color: string | null; material: string | null; identifyingMarks: string | null; privateDetails: string | null; approximateTime: string | null; locationDetails: string | null; contactedAbout?: string | null; custodyStatus?: string | null };
+type ReportFields = {
+  title: string;
+  description: string;
+  location: string;
+  category: string;
+  occurredAt: string;
+  subcategory: string | null;
+  brand: string | null;
+  color: string | null;
+  privateDetails: string | null;
+  approximateTime: string | null;
+  locationDetails: string | null;
+};
 
 function localDateTimeValue(value: string) {
   const date = new Date(value);
@@ -14,13 +26,23 @@ function localDateTimeValue(value: string) {
 
 export function ReportEditForm({ id, type, report }: { id: string; type: "LOST" | "FOUND"; report: ReportFields }) {
   const router = useRouter();
+  const [category, setCategory] = useState(report.category);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const categories = type === "LOST" ? LOST_ITEM_CATEGORIES : ITEM_CATEGORIES;
+  const isOtherLostItem = type === "LOST" && category === "Other";
+
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setSaving(true); setMessage("");
+    event.preventDefault();
+    setSaving(true); setMessage("");
     const data: Record<string, FormDataEntryValue | null> = Object.fromEntries(new FormData(event.currentTarget).entries());
     if (data.occurredAt) data.occurredAt = new Date(String(data.occurredAt)).toISOString();
-    for (const key of ["subcategory", "brand", "model", "color", "material", "identifyingMarks", "privateDetails", "approximateTime", "locationDetails", "contactedAbout", "custodyStatus"]) if (!data[key]) data[key] = null;
+    if (type === "LOST") {
+      data.approximateTime = data.occurredAtApproximate ? "Approximate" : null;
+      data.subcategory = data.category === "Other" ? data.subcategory || null : null;
+      delete data.occurredAtApproximate;
+    }
+    for (const key of ["subcategory", "brand", "color", "privateDetails", "locationDetails"]) if (!data[key]) data[key] = null;
     try {
       const response = await fetch(`/api/items/${encodeURIComponent(id)}?type=${type}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       const result = await response.json();
@@ -29,14 +51,26 @@ export function ReportEditForm({ id, type, report }: { id: string; type: "LOST" 
     } catch { setMessage("We could not reach REVOK. Please try again."); }
     finally { setSaving(false); }
   }
-  return <form className="report-form" onSubmit={submit}>
-    {([ ["title", "Title", report.title], ["category", "Category", report.category], ["occurredAt", type === "LOST" ? "Date lost" : "Date found", report.occurredAt], ["description", "Description", report.description], ["location", "Location", report.location], ["subcategory", "Subcategory", report.subcategory], ["brand", "Brand", report.brand], ["model", "Model", report.model], ["color", "Color", report.color], ["material", "Material or appearance", report.material], ["identifyingMarks", "Distinguishing marks", report.identifyingMarks], ["approximateTime", "Approximate time", report.approximateTime], ["locationDetails", "Location detail", report.locationDetails], ["privateDetails", "Private identifying information", report.privateDetails], ...(type === "LOST" ? [["contactedAbout", "Already contacted", report.contactedAbout]] : [["custodyStatus", "Custody status", report.custodyStatus]]) ] as [string, string, string | null | undefined][]).map(([name, label, value]) => <label className="auth-field" key={name}>{label}{name === "category" ? <select name={name} defaultValue={value ?? ""} required>{ITEM_CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select> : name === "occurredAt" ? <input name={name} type="datetime-local" defaultValue={localDateTimeValue(value ?? new Date().toISOString())} required /> : name === "custodyStatus" ? <select name={name} defaultValue={value ?? "UNKNOWN"}><option value="UNKNOWN">Not specified</option><option value="WITH_FINDER">With me</option><option value="SECURITY_OFFICE">Security office</option><option value="HANDED_OVER">Handed over</option></select> : name === "description" || name === "identifyingMarks" || name === "privateDetails" || name === "locationDetails" ? <textarea name={name} defaultValue={value ?? ""} maxLength={name === "description" ? 2000 : name === "privateDetails" ? 1000 : 500} rows={name === "description" ? 5 : 3} required={name === "description"} /> : <input name={name} defaultValue={value ?? ""} maxLength={name === "title" ? 100 : 300} required={["title", "location"].includes(name)} />}</label>)}
-    {message && <p role="status" className="auth-message">{message}</p>}<button className="auth-submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+
+  return <form className={`report-form report-form-edit report-form-${type.toLowerCase()}`} onSubmit={submit}>
+    <label className="auth-field">{type === "LOST" ? "Item name" : "What did you find?"}<input name="title" defaultValue={report.title} minLength={3} maxLength={100} required /></label>
+    <label className="auth-field">Category<select name="category" value={category} onChange={(event) => setCategory(event.target.value)} required>{categories.map((itemCategory) => <option key={itemCategory} value={itemCategory}>{itemCategory}</option>)}{!categories.some((itemCategory) => itemCategory === report.category) && <option value={report.category}>{report.category}</option>}</select></label>
+    {isOtherLostItem && <label className="auth-field">What kind of item is it? <small>(optional)</small><input name="subcategory" defaultValue={report.subcategory ?? ""} maxLength={80} placeholder="e.g. Umbrella, water bottle, lunch box" /></label>}
+    {type === "FOUND" && <p className="report-field-help">The item photo already attached to this report cannot be changed here.</p>}
+    {type === "LOST" && <label className="auth-field">Brand <small>(optional)</small><input name="brand" defaultValue={report.brand ?? ""} maxLength={100} placeholder="Brand or maker" /></label>}
+    {type === "LOST" && <label className="auth-field">Color<input name="color" defaultValue={report.color ?? ""} maxLength={80} placeholder="Main color" required /></label>}
+    <label className="auth-field">{type === "LOST" ? "Description" : "Describe the item"}<textarea name="description" defaultValue={report.description} required minLength={10} maxLength={2000} rows={type === "LOST" ? 4 : 3} placeholder={type === "LOST" ? "Describe visible features, color patterns, or damage." : "Add details that may help identify the item."} /></label>
+    <label className="auth-field">{type === "LOST" ? "Last seen at" : "Where did you find it?"}<input name="location" defaultValue={report.location} required minLength={3} maxLength={180} placeholder="A public place or general landmark" /></label>
+    {type === "FOUND" && <label className="auth-field">More location details <small>(optional)</small><textarea name="locationDetails" defaultValue={report.locationDetails ?? ""} maxLength={300} rows={2} placeholder="Near an entrance or another public landmark" /></label>}
+    <label className="auth-field">{type === "LOST" ? "Date and time lost" : "When did you find it?"}<input name="occurredAt" type="datetime-local" max={localDateTimeValue(new Date().toISOString())} defaultValue={localDateTimeValue(report.occurredAt)} required />{type === "LOST" && <span className="report-checkbox-row"><input name="occurredAtApproximate" type="checkbox" value="true" defaultChecked={report.approximateTime === "Approximate"} /> <span>This date and time is approximate</span></span>}</label>
+    <label className="auth-field">{type === "LOST" ? "Private ownership detail" : "Private identifying detail"} <small>(optional)</small><textarea name="privateDetails" defaultValue={report.privateDetails ?? ""} maxLength={1000} rows={2} placeholder={type === "LOST" ? "A detail only the owner is likely to know." : "A detail that can help confirm ownership."} /></label>
+    {message && <p role="status" className="auth-message">{message}</p>}
+    <button className="auth-submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
     <p className="report-privacy-note">Edited reports return to pending review. Photos attached to a report cannot be changed from this editor yet.</p>
   </form>;
 }
 
-export function ReportActions({ id, type, status }: { id: string; type: "LOST" | "FOUND"; status: string }) {
+export function ReportActions({ id, type, status, locked = false }: { id: string; type: "LOST" | "FOUND"; status: string; locked?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -49,5 +83,5 @@ export function ReportActions({ id, type, status }: { id: string; type: "LOST" |
     } catch { setMessage("We could not reach REVOK. Please try again."); }
     finally { setBusy(false); }
   }
-  return <div className="report-actions"><a className="button button-outline" href={`/dashboard/reports/${type.toLowerCase()}/${id}/edit`}>Edit</a><button className="button button-outline" disabled={busy} onClick={() => void request("PATCH", { status: status === "CLOSED" ? "ACTIVE" : "CLOSED" })}>{status === "CLOSED" ? "Reopen" : "Mark resolved"}</button><button className="button button-danger" disabled={busy} onClick={() => { if (window.confirm("Remove this report from your active history? It will be retained for moderation records.")) void request("DELETE"); }}>Delete</button>{message && <small role="status">{message}</small>}</div>;
+  return <div className="report-actions"><a aria-disabled={locked} className={`button button-outline ${locked ? "is-disabled" : ""}`} href={locked ? undefined : `/dashboard/reports/${type.toLowerCase()}/${id}/edit`}>Edit</a><button className="button button-outline" disabled={busy || locked} onClick={() => void request("PATCH", { status: status === "CLOSED" ? "ACTIVE" : "CLOSED" })}>{status === "CLOSED" ? "Reopen" : "Mark resolved"}</button><button className="button button-danger" disabled={busy || locked} onClick={() => { if (window.confirm("Remove this report from your active history? It will be retained for moderation records.")) void request("DELETE"); }}>Delete</button>{message && <small role="status">{message}</small>}</div>;
 }

@@ -3,14 +3,13 @@
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ITEM_CATEGORIES } from "@/lib/items/categories";
+import { ITEM_CATEGORIES, LOST_ITEM_CATEGORIES } from "@/lib/items/categories";
 
 const MAX_IMAGES = 3;
 const MAX_LOST_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_FOUND_IMAGE_BYTES = 4 * 1024 * 1024;
-const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-const ACCEPTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
-const LOST_CATEGORIES = ["Electronics", "Wallets & bags", "ID & documents", "Keys", "Clothing", "Books & stationery", "Jewellery", "Other"] as const;
+const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/avif", "image/bmp", "image/heic", "image/heif"];
+const ACCEPTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp", ".heic", ".heif"];
 
 function localDateTimeValue() {
   const date = new Date();
@@ -124,6 +123,10 @@ export default function ReportForm({ type }: { type: "LOST" | "FOUND" }) {
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedReportId, setSubmittedReportId] = useState("");
+  const [availableStewards, setAvailableStewards] = useState<{ id: string; name: string; username: string | null }[]>([]);
+  const [selectedSteward, setSelectedSteward] = useState("");
+  const [handoverMessage, setHandoverMessage] = useState("");
+  const [handoverBusy, setHandoverBusy] = useState(false);
   const [hasValidationErrors, setHasValidationErrors] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
   const [foundLocation, setFoundLocation] = useState("");
@@ -134,6 +137,21 @@ export default function ReportForm({ type }: { type: "LOST" | "FOUND" }) {
     previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
     previewUrls.current.clear();
   }, []);
+
+  useEffect(() => {
+    if (!isLost) void fetch("/api/handovers").then(async (response) => { const result = await response.json(); if (response.ok) setAvailableStewards(result.stewards ?? []); }).catch(() => undefined);
+  }, [isLost]);
+
+  async function requestStewardHandover() {
+    if (!submittedReportId || !selectedSteward) return;
+    setHandoverBusy(true); setHandoverMessage("");
+    try {
+      const response = await fetch("/api/handovers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ foundItemId: submittedReportId, stewardId: selectedSteward }) });
+      const result = await response.json(); if (!response.ok) throw new Error(result.message ?? "Could not send handover request.");
+      setHandoverMessage("Handover request sent. The item stays with you until the Steward accepts.");
+    } catch (error) { setHandoverMessage(error instanceof Error ? error.message : "Could not send the handover request."); }
+    finally { setHandoverBusy(false); }
+  }
 
   function addFiles(selected: FileList | File[]) {
     const batch = Array.from(selected);
@@ -147,7 +165,7 @@ export default function ReportForm({ type }: { type: "LOST" | "FOUND" }) {
     const invalidCount = batch.length - valid.length;
     const overflowCount = valid.length - additions.length;
     const warnings = [
-      invalidCount ? (isLost ? "Choose a non-empty JPEG, PNG, or WebP photo that is 3 MB or smaller." : "Use JPEG, PNG, or WebP photos that are smaller than 4 MB each.") : "",
+      invalidCount ? (isLost ? "Choose a supported, non-empty image that is 3 MB or smaller." : "Use supported image photos that are smaller than 4 MB each.") : "",
       overflowCount ? "A report can include up to 3 photos." : "",
     ].filter(Boolean);
     setPhotoMessage(warnings.join(" "));
@@ -253,9 +271,9 @@ export default function ReportForm({ type }: { type: "LOST" | "FOUND" }) {
     <span>Item photos <small>(optional, up to 3)</small></span>
     <p className="report-field-help">Add up to 3 photos of your lost item. Each photo can be up to 3 MB; smaller photos are welcome.</p>
     {photos.length < MAX_IMAGES && <label className={`image-dropzone${dragging ? " is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
-      <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple className="visually-hidden" onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.currentTarget.value = ""; }} />
+      <input type="file" accept="image/*" multiple className="visually-hidden" onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.currentTarget.value = ""; }} />
       <strong>Choose photos or drag and drop</strong>
-      <span>Tap to choose JPEG, PNG, or WebP photos from your device.</span>
+      <span>Tap to choose common image formats. Up to 3 MB each.</span>
     </label>}
     <p className="report-field-help">Upload a genuine photo of the item. Do not upload AI-generated images, images focused on people, or images showing private or sensitive information. An incidental person in the background is okay.</p>
     <p className="report-photo-count" aria-live="polite">{photos.length} of 3 photos added.</p>
@@ -288,13 +306,13 @@ export default function ReportForm({ type }: { type: "LOST" | "FOUND" }) {
           <p className="report-field-help">Let others know who is currently keeping the found item.</p>
           <fieldset className="found-custody-options"><legend className="visually-hidden">Choose who is keeping the item</legend>
             <label className="found-custody-card"><input type="radio" name="custodyStatus" value="WITH_FINDER" required /><span className="found-custody-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.5-4 2.8-6 7-6s6.5 2 7 6"/></svg></span><span><strong>With me</strong><small>I am keeping the item safely.</small></span></label>
-            <label className="found-custody-card"><input type="radio" name="custodyStatus" value="HANDED_OVER" required /><span className="found-custody-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.3 8.2-8 10-4.7-1.8-8-5-8-10V6l8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><span><strong>With a REVOK Steward</strong><small>The item has been handed over to a trusted REVOK Steward.</small></span></label>
           </fieldset>
+          <p className="report-field-help">To transfer the item to a REVOK Steward, submit the report first and send a handover request. Custody changes only after that Steward accepts.</p>
         </section>
         {<label className="auth-field">Private identifying detail <small>(optional)</small><textarea name="privateDetails" maxLength={1000} rows={2} placeholder="A private detail that can help confirm ownership" /></label>}
       </>}
       {isLost ? <>
-        <label className="auth-field">Category<select name="category" required value={category} onChange={(event) => setCategory(event.target.value)}><option value="" disabled>Select a category</option>{LOST_CATEGORIES.map((itemCategory) => <option key={itemCategory} value={itemCategory}>{itemCategory}</option>)}</select></label>
+        <label className="auth-field">Category<select name="category" required value={category} onChange={(event) => setCategory(event.target.value)}><option value="" disabled>Select a category</option>{LOST_ITEM_CATEGORIES.map((itemCategory) => <option key={itemCategory} value={itemCategory}>{itemCategory}</option>)}</select></label>
         {category === "Other" && <label className="auth-field">What kind of item is it? <small>(optional)</small><input name="otherItemType" maxLength={80} placeholder="e.g. Umbrella, water bottle, lunch box" /></label>}
         <div className="report-field-grid"><label className="auth-field">Brand <small>(optional)</small><input name="brand" maxLength={100} placeholder="Brand or maker" /></label><label className="auth-field">Color <span className="report-required">Required</span><input name="color" maxLength={80} placeholder="Main color" required /></label></div>
         <label className="auth-field">Description<textarea name="description" required minLength={10} maxLength={2000} rows={4} placeholder="Describe visible features, color patterns, stickers, or damage that may help someone recognize the item." /></label><p className="report-safety-note">Never share passwords, OTPs, PINs, bank details, or other sensitive personal information.</p>
@@ -305,6 +323,7 @@ export default function ReportForm({ type }: { type: "LOST" | "FOUND" }) {
       </> : null}
       {message && <p className={`auth-message${submitted ? " found-success-message" : ""}`} role={submitted ? "status" : "alert"} aria-live="polite">{message}{submitted && <> <Link href="/dashboard">View dashboard</Link></>}</p>}
       {submitted && isLost && submittedReportId && <Link className="button button-outline" href={`/items/lost/${submittedReportId}`}>Review report and possible matches</Link>}
+      {submitted && !isLost && submittedReportId && <section className="report-steward-handover"><h2>Where is the item now?</h2>{availableStewards.length ? <><label>Request handover to a REVOK Steward<select value={selectedSteward} onChange={(event) => setSelectedSteward(event.target.value)}><option value="">Keep it with me for now</option>{availableStewards.map((steward) => <option key={steward.id} value={steward.id}>{steward.name}{steward.username ? ` · @${steward.username}` : ""}</option>)}</select></label><button className="button button-outline" type="button" disabled={handoverBusy || !selectedSteward} onClick={() => void requestStewardHandover()}>{handoverBusy ? "Sending…" : "Request handover"}</button></> : <p>No REVOK Stewards are currently available. You can keep the item with you for now.</p>}{handoverMessage && <p role="status">{handoverMessage}</p>}</section>}
       <button className="auth-submit" type="submit" disabled={saving || submitted}>{saving ? "Submitting report…" : submitted ? "Report submitted" : isLost ? "Submit Lost Report" : "Submit Found Report"}</button>
       <p className="report-privacy-note">Reports are saved to your account and stay private while pending review. Approved reports and photos are public. Avoid personal contact details in public descriptions.</p>
     </form>

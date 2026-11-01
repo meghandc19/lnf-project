@@ -79,3 +79,23 @@ export function searchRelevance(query: string, fields: Array<string | null | und
   const titleCoverage = queryTokens.filter((token) => titleTokens.some((candidate) => searchMatches(token, candidate))).length;
   return (coverage / queryTokens.length) * 60 + (titleCoverage / queryTokens.length) * 40;
 }
+
+export function scoreInventoryMatch(inventory: { name: string; brand?: string | null; color?: string | null }, found: { title: string; brand?: string | null; color?: string | null; subcategory?: string | null; category?: string | null; description?: string | null }) {
+  const nameScore = searchRelevance(inventory.name, [found.title, found.subcategory, found.category, found.brand, found.color, found.description]);
+  if (nameScore < 50) return 0;
+  const compareAttribute = (left: string | null | undefined, right: string | null | undefined) => {
+    const leftTokens = tokens(left);
+    const rightTokens = tokens(right);
+    if (!leftTokens.length || !rightTokens.length) return 0;
+    const matches = leftTokens.filter((token) => rightTokens.some((candidate) => closeWord(token, candidate))).length;
+    return matches / leftTokens.length;
+  };
+  let score = nameScore;
+  const brandScore = compareAttribute(inventory.brand, found.brand);
+  const colorScore = compareAttribute(inventory.color, found.color);
+  if (brandScore) score += Math.round(brandScore * 15);
+  else if (inventory.brand && found.brand) score -= 15;
+  if (colorScore) score += Math.round(colorScore * 10);
+  else if (inventory.color && found.color) score -= 10;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}

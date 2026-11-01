@@ -9,3 +9,14 @@ export const ITEM_CATEGORIES = [
   "Wallets & bags",
   "Other",
 ] as const;
+
+export const LOST_ITEM_CATEGORIES = [
+  "Electronics",
+  "Wallets & bags",
+  "ID & documents",
+  "Keys",
+  "Clothing",
+  "Books & stationery",
+  "Jewellery",
+  "Other",
+] as const;

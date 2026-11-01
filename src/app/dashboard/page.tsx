@@ -1,45 +1,62 @@
 import { redirect } from "next/navigation";
-import { requireCanBrowse } from "@/lib/auth/guards";
-import LogoutButton from "@/components/auth/LogoutButton";
-import SiteFooter from "@/components/site/SiteFooter";
-import SiteHeader from "@/components/site/SiteHeader";
+import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import Image from "next/image";
+import { requireCanBrowse } from "@/lib/auth/guards";
+import SiteFooter from "@/components/site/SiteFooter";
+import SiteHeader from "@/components/site/SiteHeader";
+import LogoutButton from "@/components/auth/LogoutButton";
+import StewardDashboard from "@/components/claims/HandoverControls";
+import { HandoverButton } from "@/components/claims/HandoverControls";
 import { ReportActions } from "@/components/reports/ReportManagement";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams?: Promise<{ view?: string }> }) {
   let user;
   try { user = await requireCanBrowse(); } catch { redirect("/login"); }
-  const [lostCount, foundCount, lostReports, foundReports, receivedClaims, submittedClaims] = await Promise.all([
+  const view = (await searchParams)?.view;
+  const showKind = view === "lost" || view === "found" ? view.toUpperCase() : null;
+  const participant = { is: { participants: { some: { userId: user.id, deletedAt: null } } } };
+  const [lostCount, foundCount, sentClaims, receivedClaims, lostRows, foundRows] = await Promise.all([
     prisma.lostItem.count({ where: { userId: user.id, deletedAt: null } }),
     prisma.foundItem.count({ where: { userId: user.id, deletedAt: null } }),
-    prisma.lostItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { createdAt: "desc" }, include: { images: true, category: true } }),
-    prisma.foundItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { createdAt: "desc" }, include: { images: true, category: true } }),
-    prisma.claim.findMany({ where: { foundItem: { userId: user.id } }, orderBy: { createdAt: "desc" }, take: 50, include: { user: { select: { name: true, username: true, image: true } }, foundItem: { select: { id: true, title: true } } } }),
-    prisma.claim.findMany({ where: { userId: user.id, foundItemId: { not: null } }, orderBy: { createdAt: "desc" }, take: 50, include: { foundItem: { select: { id: true, title: true } } } }),
+    prisma.claim.count({ where: { userId: user.id, foundItemId: { not: null }, foundItem: { userId: { not: user.id } }, conversation: participant } }),
+    prisma.claim.count({ where: { foundItem: { userId: user.id }, userId: { not: user.id }, conversation: participant } }),
+    prisma.lostItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { updatedAt: "desc" }, include: { images: true, category: true, _count: { select: { reportMessages: { where: { parentMessageId: null } } } } } }),
+    prisma.foundItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { updatedAt: "desc" }, include: { images: true, category: true, _count: { select: { reportMessages: { where: { parentMessageId: null } } } }, claims: { where: { status: { in: ["PENDING", "APPROVED"] } }, select: { id: true } } } }),
   ]);
-  const memberMonths = Math.max(1, (new Date().getFullYear() - user.createdAt.getFullYear()) * 12 + new Date().getMonth() - user.createdAt.getMonth());
-  const reports = [...lostReports.map((report) => ({ ...report, type: "LOST" as const, occurredAt: report.lostAt })), ...foundReports.map((report) => ({ ...report, type: "FOUND" as const, occurredAt: report.foundAt }))].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  const renderReport = (report: (typeof reports)[number]) => <article className="dashboard-report-card" key={`${report.type}-${report.id}`}>
-    {report.images[0] ? <Image className="dashboard-report-image" src={report.images[0].url} width={120} height={100} alt="" unoptimized /> : <div className="dashboard-report-image dashboard-report-placeholder" aria-hidden="true">✳</div>}
-    <div className="dashboard-report-copy"><span className={`report-kind ${report.type === "LOST" ? "report-kind-lost" : "report-kind-found"}`}>{report.type === "LOST" ? "Lost" : "Found"}</span><h3>{report.title}</h3><p>{report.category.name} · {report.location}</p><small>{report.occurredAt.toLocaleDateString()} · {report.status === "ACTIVE" ? "Active" : "Resolved / closed"}</small><span className={`report-review-status report-status-${report.moderation.toLowerCase()}`}>{report.moderation === "APPROVED" ? "Approved" : report.moderation === "FLAGGED" ? "Under review" : report.moderation === "BLOCKED" ? "Not published" : "Pending review"}</span><Link className="button button-outline" href={`/items/${report.type.toLowerCase()}/${report.id}`}>View report</Link></div>
-    <ReportActions id={report.id} type={report.type} status={report.status} />
-  </article>;
+  type Report = { id: string; type: "LOST" | "FOUND"; title: string; category: { name: string }; location: string; images: { url: string }[]; occurredAt: Date; updatedAt: Date; status: string; moderation: string; communicationCount: number };
+  const reports: Report[] = [
+    ...(showKind === "LOST" ? lostRows.map((report) => ({ id: report.id, type: "LOST" as const, title: report.title, category: report.category, location: report.location, images: report.images, occurredAt: report.lostAt, updatedAt: report.updatedAt, status: report.status, moderation: report.moderation, communicationCount: report._count.reportMessages })) : []),
+    ...(showKind === "FOUND" ? foundRows.map((report) => ({ id: report.id, type: "FOUND" as const, title: report.title, category: report.category, location: report.location, images: report.images, occurredAt: report.foundAt, updatedAt: report.updatedAt, status: report.status, moderation: report.moderation, communicationCount: report._count.reportMessages })) : []),
+  ];
+  const renderReport = (report: Report) => {
+    const type = report.type ?? "LOST";
+    const isFound = type === "FOUND";
+    const foundReport = isFound ? foundRows.find((item) => item.id === report.id) : null;
+    const locked = Boolean(foundReport && (foundReport.claims.length > 0 || foundReport.custodianId || ["HANDOVER_PENDING", "WITH_STEWARD", "HANDED_OVER"].includes(foundReport.custodyStatus ?? "")));
+    return <article className="dashboard-report-card" key={`${type}-${report.id}`}>
+      {report.images[0] ? <Image className="dashboard-report-image" src={report.images[0].url} width={120} height={100} alt="" unoptimized /> : <div className="dashboard-report-image dashboard-report-placeholder" aria-hidden="true">✳</div>}
+      <div className="dashboard-report-copy"><span className={`report-kind report-kind-${type.toLowerCase()}`}>{isFound ? "Found" : "Lost"}</span><h3>{report.title}</h3><p>{report.category.name} · {report.location}</p><small>{report.occurredAt?.toLocaleDateString()} · {report.status === "ACTIVE" ? "Active" : "Resolved / closed"}</small><small>Listed on {report.updatedAt.toLocaleDateString()}</small><span className={`report-review-status report-status-${report.moderation.toLowerCase()}`}>{report.moderation === "APPROVED" ? "Approved" : report.moderation === "FLAGGED" ? "Under review" : report.moderation === "BLOCKED" ? "Not published" : "Pending review"}</span><Link className="button button-outline" href={`/items/${type.toLowerCase()}/${report.id}`}>View report</Link></div>
+      <div className="dashboard-report-actions"><ReportActions id={report.id} type={type} status={report.status} locked={locked} /><Link className="button button-outline" href={`/dashboard/reports/${type.toLowerCase()}/${encodeURIComponent(report.id)}/communications`}>Hints ({report.communicationCount})</Link>{isFound && foundReport && !locked && <HandoverButton foundItemId={report.id} />}{locked && <small>This found report has an active claim or Steward handover. Editing or deleting is paused until it is resolved.</small>}</div>
+    </article>;
+  };
+  const claimCount = sentClaims + receivedClaims;
+
   return <div className="site-page"><SiteHeader /><main className="dashboard-main page-width">
-    <div className="dashboard-welcome"><div><p className="eyebrow">Your REVOK space</p><h1>Welcome, {user.name}.</h1><p>Your account overview and community history.</p></div><div className="dashboard-heading-actions"><Link href="/profile" className="button button-outline">Edit profile</Link><LogoutButton /></div></div>
+    <section className="dashboard-user-header" aria-label="Your account details">
+      {user.image ? <Image className="dashboard-user-avatar" src={user.image} width={58} height={58} alt="" unoptimized referrerPolicy="no-referrer" /> : <span className="dashboard-user-avatar dashboard-user-avatar-placeholder" aria-hidden="true">{user.name.slice(0, 1).toUpperCase()}</span>}
+      <div className="dashboard-user-copy"><p className="eyebrow">Your REVOK space</p><h1>{user.name}</h1><span>{user.username ? `@${user.username}` : "Username not set"}</span><span>{user.phoneNumber || "Phone number not added"}{user.phoneNumberVerified ? " · Verified" : ""}</span></div>
+      <span className={`status-chip${user.status === "ACTIVE" ? " dashboard-active-chip" : ""}`}>{user.status === "ACTIVE" ? "Active" : "Restricted"}</span><LogoutButton />
+    </section>
     {user.status === "RESTRICTED" && <div className="notice-card" role="status"><strong>Browsing access</strong><p>Your account is restricted. You can browse available information, but protected actions are disabled.</p></div>}
-    <section className="account-summary" aria-label="Account details">{user.image ? <Image className="account-avatar account-avatar-image" src={user.image} width={42} height={42} alt="" unoptimized referrerPolicy="no-referrer" /> : <span className="account-avatar" aria-hidden="true">{user.name.slice(0, 1).toUpperCase()}</span>}<div><strong>{user.name}</strong><span>{user.username ? `@${user.username}` : "Username not set"}</span></div><span className="status-chip">{user.status === "ACTIVE" ? "Active" : "Restricted"}</span></section>
-    <section className="dashboard-stats" aria-label="Community history"><article><span>Lost reports</span><strong>{lostCount}</strong><small>created by you</small></article><article><span>Found reports</span><strong>{foundCount}</strong><small>created by you</small></article><article><span>Member for</span><strong>{memberMonths}</strong><small>{memberMonths === 1 ? "month" : "months"}</small></article></section>
-    <div className="dashboard-history-note"><strong>Report review</strong><p>New and edited reports are private to you while pending review. Approved active reports are visible on the community search page.</p></div>
-    <section className="dashboard-reports" aria-labelledby="dashboard-reports-title"><div className="dashboard-section-heading"><div><p className="eyebrow">Your history</p><h2 id="dashboard-reports-title">Your reports</h2></div><div className="button-row"><Link className="button button-outline" href="/report/lost">Report lost</Link><Link className="button button-primary" href="/report/found">Report found</Link></div></div>
-      {reports.length ? <div className="dashboard-report-groups">{(["LOST", "FOUND"] as const).map((kind) => { const typed = reports.filter((report) => report.type === kind); return <section className="dashboard-report-group" key={kind}><h3>My {kind === "LOST" ? "Lost" : "Found"} Reports <small>({typed.length})</small></h3>{([true, false] as const).map((active) => { const subset = typed.filter((report) => (report.status === "ACTIVE") === active); return subset.length ? <section className="dashboard-report-subgroup" key={String(active)}><h4>{active ? "Active" : "Resolved or closed"} <small>({subset.length})</small></h4><div className="dashboard-report-list">{subset.map(renderReport)}</div></section> : null; })}</section>; })}</div> : <div className="empty-state dashboard-empty"><p className="eyebrow">No reports yet</p><h2>Your lost and found reports will appear here.</h2><p>Submitted reports stay connected to your account, including after you sign out and back in.</p></div>}
+    <section className="dashboard-stats" aria-label="Your account activity">
+      <Link href="/dashboard?view=lost" aria-label={`${lostCount} lost reports`}><span>Lost Reports</span><strong>{lostCount}</strong><small>View your lost reports →</small></Link>
+      <Link href="/dashboard?view=found" aria-label={`${foundCount} found reports`}><span>Found Reports</span><strong>{foundCount}</strong><small>View your found reports →</small></Link>
+      <Link href="/dashboard/claims?view=sent" aria-label={`${claimCount} claim requests`}><span>Claim Requests</span><strong>{claimCount}</strong><small>Open claims →</small></Link>
     </section>
-    <section className="dashboard-claims" aria-labelledby="dashboard-claims-title"><div className="dashboard-section-heading"><div><p className="eyebrow">Private to your account</p><h2 id="dashboard-claims-title">Claim requests</h2></div></div>
-      <p className="claim-safety-note">Stay safe while communicating. Do not share your phone number, passwords, OTPs, PINs, bank details, or other personal information. Keep communication within REVOK. Sharing personal contact details is at your own risk.</p>
-      <div className="dashboard-claim-columns"><section aria-labelledby="received-claims-title"><h3 id="received-claims-title">Requests for your found items</h3>{receivedClaims.length ? <div className="dashboard-claim-list">{receivedClaims.map((claim) => <article className="dashboard-claim-card" key={claim.id}><div><strong>{claim.foundItem?.title ?? "Found item"}</strong>{claim.foundItem && <Link href={`/items/found/${claim.foundItem.id}`}>View found item</Link>}<span>From {claim.user.name}{claim.user.username ? ` · @${claim.user.username}` : ""}</span></div><p>{claim.message ?? "No message supplied."}</p><small>{claim.createdAt.toLocaleDateString()} · {claim.status.toLowerCase()}</small></article>)}</div> : <p className="dashboard-claim-empty">No one has sent a request for your found items yet.</p>}</section>
-        <section aria-labelledby="submitted-claims-title"><h3 id="submitted-claims-title">Your claim requests</h3>{submittedClaims.length ? <div className="dashboard-claim-list">{submittedClaims.map((claim) => <article className="dashboard-claim-card" key={claim.id}><div><strong>{claim.foundItem?.title ?? "Found item"}</strong>{claim.foundItem && <Link href={`/items/found/${claim.foundItem.id}`}>View item</Link>}</div><p>{claim.message ?? "No message supplied."}</p><small>{claim.createdAt.toLocaleDateString()} · {claim.status.toLowerCase()}</small></article>)}</div> : <p className="dashboard-claim-empty">Claim requests you send will be listed here.</p>}</section></div>
-    </section>
-    <div className="dashboard-grid"><article className="dashboard-card"><h2>Possible matches</h2><p>Relevant suggestions appear on a lost report when we find approved found items with similar details.</p><Link className="text-link" href="/items">Search Items</Link></article><article className="dashboard-card"><h2>Messages</h2><p>Private claim messages are saved above. In-app replies are not available yet.</p><span className="status-chip">Coming later</span></article><article className="dashboard-card"><h2>Notifications</h2><p>New claim requests appear in the claim inbox above.</p><span className="status-chip">Claim inbox</span></article></div>
+    {showKind ? <section className="dashboard-reports" aria-labelledby="dashboard-reports-title"><div className="dashboard-section-heading"><div><p className="eyebrow">Your history</p><h2 id="dashboard-reports-title">My {showKind === "LOST" ? "Lost" : "Found"} Reports</h2></div><div className="button-row"><Link className="button button-outline" href="/dashboard">Dashboard</Link><Link className="button button-primary" href={showKind === "LOST" ? "/report/lost" : "/report/found"}>Report {showKind.toLowerCase()}</Link></div></div>
+      {reports.length ? <div className="dashboard-report-list">{reports.map(renderReport)}</div> : <div className="empty-state dashboard-empty"><h2>No {showKind.toLowerCase()} reports yet.</h2><p>Your reports will appear here after you submit one.</p></div>}
+    </section> : null}
+    {user.role === "REVOK_STEWARD" && <StewardDashboard />}
   </main><SiteFooter /></div>;
 }

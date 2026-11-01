@@ -19,7 +19,7 @@ export const reportSchema = z.object({
   occurredAtApproximate: z.boolean().optional(),
   locationDetails: z.string().trim().max(300).optional(),
   contactedAbout: z.string().trim().max(200).optional(),
-  custodyStatus: z.enum(["WITH_FINDER", "SECURITY_OFFICE", "HANDED_OVER", "UNKNOWN"]).optional(),
+  custodyStatus: z.enum(["WITH_FINDER", "SECURITY_OFFICE", "UNKNOWN"]).optional(),
   occurredAt: z.iso.datetime({ offset: true }).transform((value) => new Date(value)),
 }).superRefine((report, context) => {
   if (report.type === "LOST" && !report.color?.trim()) {
@@ -43,7 +43,7 @@ export const editReportSchema = z.object({
   approximateTime: z.string().trim().max(80).nullable().optional(),
   locationDetails: z.string().trim().max(300).nullable().optional(),
   contactedAbout: z.string().trim().max(200).nullable().optional(),
-  custodyStatus: z.enum(["WITH_FINDER", "SECURITY_OFFICE", "HANDED_OVER", "UNKNOWN"]).nullable().optional(),
+  custodyStatus: z.enum(["WITH_FINDER", "SECURITY_OFFICE", "UNKNOWN"]).nullable().optional(),
   status: z.enum(["ACTIVE", "CLOSED"]).optional(),
 }).strict();
 

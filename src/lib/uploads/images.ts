@@ -4,7 +4,7 @@ import path from "node:path";
 import { s3Request } from "./s3.ts";
 
 export const IMAGE_LIMITS = {
-  profile: 8 * 1024 * 1024,
+  profile: 3 * 1024 * 1024,
   item: 5 * 1024 * 1024,
   foundItem: 4 * 1024 * 1024,
   lostItem: 3 * 1024 * 1024,
@@ -18,6 +18,11 @@ const formats = {
   "image/jpeg": { extension: ".jpg", matches: (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff },
   "image/png": { extension: ".png", matches: (bytes: Uint8Array) => bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 },
   "image/webp": { extension: ".webp", matches: (bytes: Uint8Array) => String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP" },
+  "image/gif": { extension: ".gif", matches: (bytes: Uint8Array) => ["GIF87a", "GIF89a"].includes(String.fromCharCode(...bytes.slice(0, 6))) },
+  "image/bmp": { extension: ".bmp", matches: (bytes: Uint8Array) => bytes[0] === 0x42 && bytes[1] === 0x4d },
+  "image/avif": { extension: ".avif", matches: (bytes: Uint8Array) => String.fromCharCode(...bytes.slice(4, 8)) === "ftyp" && ["avif", "avis"].includes(String.fromCharCode(...bytes.slice(8, 12))) },
+  "image/heic": { extension: ".heic", matches: (bytes: Uint8Array) => String.fromCharCode(...bytes.slice(4, 8)) === "ftyp" && ["heic", "heix", "hevc", "hevx"].includes(String.fromCharCode(...bytes.slice(8, 12))) },
+  "image/heif": { extension: ".heif", matches: (bytes: Uint8Array) => String.fromCharCode(...bytes.slice(4, 8)) === "ftyp" && String.fromCharCode(...bytes.slice(8, 12)) === "mif1" },
 } as const;
 
 export type ImageMimeType = keyof typeof formats;
@@ -27,7 +32,16 @@ const extensionMimes: Record<string, ImageMimeType> = {
   ".jpeg": "image/jpeg",
   ".png": "image/png",
   ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".bmp": "image/bmp",
+  ".avif": "image/avif",
+  ".heic": "image/heic",
+  ".heif": "image/heif",
 };
+
+export function isSupportedImageMimeType(mimeType: string): mimeType is ImageMimeType {
+  return Object.prototype.hasOwnProperty.call(formats, mimeType);
+}
 
 function imageMimeType(file: File): ImageMimeType | undefined {
   if (file.type === "image/jpg") return "image/jpeg";
@@ -47,11 +61,11 @@ export async function validateImage(file: File, maxBytes: number) {
   const mimeType = imageMimeType(file);
   if (file.size <= 0) throw new Error("The selected photo is empty. Choose another image.");
   if (file.size > maxBytes) throw new Error(`Image size exceeded. Use a photo that is ${Math.floor(maxBytes / (1024 * 1024))} MB or smaller.`);
-  if (!mimeType) throw new Error("Use a JPEG, JPG, PNG, or WebP photo.");
+  if (!mimeType) throw new Error("Use a supported image format: JPEG, PNG, WebP, GIF, AVIF, BMP, HEIC, or HEIF.");
   const bytes = new Uint8Array(await file.arrayBuffer());
   const format = formats[mimeType];
   if (bytes.byteLength !== file.size || !format.matches(bytes)) {
-    throw new Error("This file does not match its image type. Choose a valid JPEG, PNG, or WebP photo.");
+    throw new Error("This file does not match its image type. Choose a valid JPEG, PNG, WebP, GIF, AVIF, BMP, HEIC, or HEIF image.");
   }
   return { bytes, mimeType, extension: format.extension };
 }
@@ -79,7 +93,7 @@ export async function storeImage(scope: "profiles" | "items", file: File, maxByt
 }
 
 export async function removeStoredImage(storageKey: string) {
-  if (!/^(profiles|items)\/[a-f0-9-]+\.(jpg|png|webp)$/i.test(storageKey)) return;
+  if (!/^(profiles|items)\/[a-f0-9-]+\.(jpg|png|webp|gif|bmp|avif|heic|heif)$/i.test(storageKey)) return;
   const [scope, filename] = storageKey.split("/");
   if (scope === "items" && storageDriver() === "s3") {
     await s3Request("DELETE", storageKey);
@@ -96,7 +110,7 @@ export async function removeStoredImage(storageKey: string) {
 }
 
 export async function readStoredImage(storageKey: string) {
-  if (!/^items\/[a-f0-9-]+\.(jpg|png|webp)$/i.test(storageKey)) throw new Error("Invalid image key.");
+  if (!/^items\/[a-f0-9-]+\.(jpg|png|webp|gif|bmp|avif|heic|heif)$/i.test(storageKey)) throw new Error("Invalid image key.");
   if (storageDriver() === "s3") {
     return await s3Request("GET", storageKey);
   }

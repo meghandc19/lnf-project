@@ -11,6 +11,7 @@ enum UserRole {
   USER
   ADMIN
   SUPER_ADMIN
+  REVOK_STEWARD
 }
 
 enum UserStatus {
@@ -39,6 +40,7 @@ enum ClaimStatus {
   APPROVED
   REJECTED
   CANCELLED
+  RECOVERED
 }
 
 enum MatchStatus {
@@ -54,6 +56,24 @@ enum NotificationType {
   MESSAGE
   SYSTEM
   MODERATION
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+  FRIEND_REPORT
+  REPORT_COMMENT
+  REPORT_HINT
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  REMOVED
+}
+
+enum ReportMessageKind {
+  COMMENT
+  HINT
 }
 
 enum MessageType {
@@ -95,9 +115,20 @@ model User {
   claims                   Claim[]
   sentMessages             Message[]
   notifications            Notification[]
+  inventoryItems           InventoryItem[]
   auditLogs                AuditLog[] @relation("ActorAuditLogs")
   moderationEvents         ModerationEvent[]
   conversationParticipants ConversationParticipant[]
+  handoversAsFinder HandoverRequest[] @relation("HandoverFinder")
+  handoversAsSteward HandoverRequest[] @relation("HandoverSteward")
+  custodyItems FoundItem[] @relation("FoundItemCustodian")
+  submittedUserReports UserReport[] @relation("UserReportReporter")
+  receivedUserReports UserReport[] @relation("UserReportReported")
+  reviewedUserReports UserReport[] @relation("UserReportReviewer")
+  sentFriendships Friendship[] @relation("FriendshipRequester")
+  receivedFriendships Friendship[] @relation("FriendshipRecipient")
+  sentReportMessages ReportMessage[] @relation("ReportMessageSender")
+  ownedReportMessages ReportMessage[] @relation("ReportMessageOwner")
 
   sessions Session[]
   accounts Account[]
@@ -195,11 +226,14 @@ model LostItem {
   images       ItemImage[]
   matches      Match[]
   claims       Claim[]
+  reportMessages ReportMessage[]
+  notifications Notification[]
 }
 
 model FoundItem {
   id          String     @id @default(cuid())
   userId      String
+  custodianId String?
   categoryId  String
   brand          String?
   color          String?
@@ -225,11 +259,18 @@ model FoundItem {
   deletedAt DateTime?
 
   user     User     @relation(fields: [userId], references: [id])
+  custodian User? @relation("FoundItemCustodian", fields: [custodianId], references: [id])
   category Category @relation(fields: [categoryId], references: [id])
 
   images       ItemImage[]
   matches      Match[]
   claims       Claim[]
+  handovers HandoverRequest[]
+  userReports UserReport[]
+  notifications Notification[]
+  reportMessages ReportMessage[]
+
+  @@index([custodianId])
 }
 
 model ItemImage {
@@ -275,6 +316,16 @@ model Claim {
 
   status      ClaimStatus @default(PENDING)
   message     String?
+  conversationId String? @unique
+  recoveryCodeHash String?
+  recoveryCodeCiphertext String?
+  recoveryCodeIv String?
+  recoveryCodeTag String?
+  recoveryCodeExpiresAt DateTime?
+  recoveryCodeAttempts Int @default(0)
+  recoveryCodeUsedAt DateTime?
+  recoveryCodeIssuedAt DateTime?
+  recoveredAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -282,6 +333,12 @@ model Claim {
   user      User       @relation(fields: [userId], references: [id])
   lostItem  LostItem?  @relation(fields: [lostItemId], references: [id])
   foundItem FoundItem? @relation(fields: [foundItemId], references: [id])
+  conversation ChatConversation? @relation(fields: [conversationId], references: [id])
+  userReports UserReport[]
+  notifications Notification[]
+
+  @@index([foundItemId, status])
+  @@index([userId, status])
 }
 
 model ChatConversation {
@@ -291,6 +348,7 @@ model ChatConversation {
 
   participants ConversationParticipant[]
   messages     Message[]
+  claim Claim?
 }
 
 model ConversationParticipant {
@@ -299,6 +357,8 @@ model ConversationParticipant {
   userId         String
 
   joinedAt DateTime @default(now())
+  lastReadAt DateTime?
+  deletedAt DateTime?
 
   conversation ChatConversation @relation(fields: [conversationId], references: [id])
   user         User             @relation(fields: [userId], references: [id])
@@ -329,10 +389,142 @@ model Notification {
   title   String
   message String
   readAt  DateTime?
+  foundItemId String?
+  lostItemId String?
+  inventoryItemId String?
+  claimId String?
+  friendshipId String?
+  reportMessageId String? @unique
+  dedupeKey String? @unique
 
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+  foundItem FoundItem? @relation(fields: [foundItemId], references: [id], onDelete: SetNull)
+  lostItem LostItem? @relation(fields: [lostItemId], references: [id], onDelete: SetNull)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  claim Claim? @relation(fields: [claimId], references: [id], onDelete: SetNull)
+  friendship Friendship? @relation(fields: [friendshipId], references: [id], onDelete: SetNull)
+  reportMessage ReportMessage? @relation(fields: [reportMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, type, foundItemId, inventoryItemId])
+  @@index([userId, readAt, createdAt])
+}
+
+model InventoryItem {
+  id             String   @id @default(cuid())
+  userId         String
+  name           String   @db.VarChar(100)
+  normalizedName String   @db.VarChar(100)
+  brand          String?  @db.VarChar(100)
+  color          String?  @db.VarChar(80)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@unique([userId, normalizedName])
+  @@index([userId, createdAt])
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  pairKey     String           @unique
+  requesterId String
+  recipientId String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  acceptedAt  DateTime?
+
+  requester User           @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipient User           @relation("FriendshipRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([requesterId, status, updatedAt])
+  @@index([recipientId, status, updatedAt])
+}
+
+model ReportMessage {
+  id              String            @id @default(cuid())
+  lostItemId      String?
+  foundItemId     String?
+  reportOwnerId   String
+  senderId        String
+  parentMessageId String?
+  clientRequestId String            @unique
+  kind            ReportMessageKind
+  body            String            @db.VarChar(2000)
+  location        String?           @db.VarChar(180)
+  sightingAt      DateTime?
+  createdAt       DateTime          @default(now())
+
+  lostItem LostItem? @relation(fields: [lostItemId], references: [id], onDelete: Cascade)
+  foundItem FoundItem? @relation(fields: [foundItemId], references: [id], onDelete: Cascade)
+  reportOwner User @relation("ReportMessageOwner", fields: [reportOwnerId], references: [id], onDelete: Cascade)
+  sender User @relation("ReportMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  parent ReportMessage? @relation("ReportMessageReplies", fields: [parentMessageId], references: [id], onDelete: Cascade)
+  replies ReportMessage[] @relation("ReportMessageReplies")
+  notifications Notification[]
+
+  @@index([lostItemId, createdAt])
+  @@index([foundItemId, createdAt])
+  @@index([reportOwnerId, createdAt])
+  @@index([senderId, createdAt])
+  @@index([parentMessageId, createdAt])
+}
+
+enum HandoverStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  COMPLETED
+  CANCELLED
+}
+
+model HandoverRequest {
+  id String @id @default(cuid())
+  foundItemId String
+  finderId String
+  stewardId String
+  previousCustodyStatus String?
+  status HandoverStatus @default(PENDING)
+  requestedAt DateTime @default(now())
+  respondedAt DateTime?
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  foundItem FoundItem @relation(fields: [foundItemId], references: [id])
+  finder User @relation("HandoverFinder", fields: [finderId], references: [id])
+  steward User @relation("HandoverSteward", fields: [stewardId], references: [id])
+
+  @@index([stewardId, status])
+  @@index([foundItemId, status])
+}
+
+model UserReport {
+  id String @id @default(cuid())
+  reporterId String
+  reportedUserId String
+  claimId String
+  foundItemId String
+  reason String
+  description String @db.VarChar(3000)
+  adminDecision String?
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+
+  reporter User @relation("UserReportReporter", fields: [reporterId], references: [id])
+  reportedUser User @relation("UserReportReported", fields: [reportedUserId], references: [id])
+  reviewer User? @relation("UserReportReviewer", fields: [reviewedBy], references: [id])
+  claim Claim @relation(fields: [claimId], references: [id])
+  foundItem FoundItem @relation(fields: [foundItemId], references: [id])
+
+  @@unique([reporterId, claimId])
+  @@index([createdAt])
 }
 
 model ModerationEvent {

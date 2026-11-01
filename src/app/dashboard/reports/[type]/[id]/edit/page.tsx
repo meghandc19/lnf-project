@@ -14,9 +14,9 @@ export default async function EditReportPage({ params }: { params: Promise<{ typ
   const type = rawType.toUpperCase();
   if (type !== "LOST" && type !== "FOUND") notFound();
   const where = reportOwnerWhere(id, user.id);
-  const select = { id: true, title: true, description: true, location: true, subcategory: true, brand: true, model: true, color: true, material: true, identifyingMarks: true, privateDetails: true, approximateTime: true, locationDetails: true } as const;
-  const report = type === "LOST" ? await prisma.lostItem.findFirst({ where, select: { ...select, lostAt: true, category: { select: { name: true } }, contactedAbout: true } }) : await prisma.foundItem.findFirst({ where, select: { ...select, foundAt: true, category: { select: { name: true } }, custodyStatus: true } });
+  const select = { id: true, title: true, description: true, location: true, privateDetails: true, locationDetails: true } as const;
+  const report = type === "LOST" ? await prisma.lostItem.findFirst({ where, select: { ...select, lostAt: true, brand: true, color: true, subcategory: true, approximateTime: true, category: { select: { name: true } } } }) : await prisma.foundItem.findFirst({ where, select: { ...select, foundAt: true, category: { select: { name: true } } } });
   if (!report) notFound();
-  const reportFields = { ...report, category: report.category.name, occurredAt: ("lostAt" in report ? report.lostAt : report.foundAt).toISOString() };
+  const reportFields = { ...report, category: report.category.name, occurredAt: ("lostAt" in report ? report.lostAt : report.foundAt).toISOString(), brand: "brand" in report ? report.brand : null, color: "color" in report ? report.color : null, subcategory: "subcategory" in report ? report.subcategory : null, approximateTime: "approximateTime" in report ? report.approximateTime : null };
   return <div className="site-page"><SiteHeader /><main className="subpage-main page-width"><Link href="/dashboard" className="button button-outline">← My reports</Link><p className="eyebrow">Edit {type.toLowerCase()} report</p><h1 className="page-title">Update report details</h1><section className="report-card"><ReportEditForm id={id} type={type} report={reportFields} /></section></main></div>;
 }

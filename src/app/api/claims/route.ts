@@ -24,15 +24,17 @@ export async function POST(request: Request) {
         const item = await tx.foundItem.findFirst({ where: { id: foundItemId, deletedAt: null, status: "ACTIVE", moderation: "APPROVED" }, select: { id: true, title: true, userId: true } });
         if (!item) return { kind: "missing" as const };
         if (item.userId === user.id) return { kind: "owner" as const };
-        const existing = await tx.claim.findFirst({ where: { userId: user.id, foundItemId }, select: { id: true, status: true } });
+        const existing = await tx.claim.findFirst({ where: { userId: user.id, foundItemId, status: { in: ["PENDING", "APPROVED"] } }, select: { id: true, status: true } });
         if (existing) return { kind: "duplicate" as const, status: existing.status };
-        const claim = await tx.claim.create({ data: { userId: user.id, foundItemId, message }, select: { id: true, status: true, createdAt: true } });
-      await tx.notification.create({ data: { userId: item.userId, type: "CLAIM", title: "New claim request", message: `Someone sent a claim request for “${item.title}”. Open your dashboard to review it.` } });
+        const conversation = await tx.chatConversation.create({ data: { participants: { create: [{ userId: user.id }, { userId: item.userId }] } } });
+        const claim = await tx.claim.create({ data: { userId: user.id, foundItemId, message, conversationId: conversation.id }, select: { id: true, status: true, createdAt: true } });
+        await tx.message.create({ data: { conversationId: conversation.id, senderId: user.id, content: message } });
+        await tx.notification.create({ data: { userId: item.userId, type: "CLAIM", title: "New claim request", message: `Someone sent a claim request for “${item.title}”. Open your dashboard to review it.`, claimId: claim.id } });
         return { kind: "created" as const, claim };
       }, { isolationLevel: "Serializable" });
     } catch (error) {
       if (typeof error === "object" && error !== null && "code" in error && error.code === "P2034") {
-        const existing = await prisma.claim.findFirst({ where: { userId: user.id, foundItemId }, select: { status: true } });
+        const existing = await prisma.claim.findFirst({ where: { userId: user.id, foundItemId, status: { in: ["PENDING", "APPROVED"] } }, select: { status: true } });
         if (existing) return Response.json({ message: `You already sent a claim request for this item (${existing.status.toLowerCase()}).` }, { status: 409 });
         return Response.json({ message: "Another request is being processed. Please try sending your claim again." }, { status: 409 });
       }

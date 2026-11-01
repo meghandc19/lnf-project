@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ClaimForm from "@/components/items/ClaimForm";
+import ReportCommunicationActions from "@/components/items/ReportCommunicationActions";
 import ItemImageCarousel from "@/components/items/ItemImageCarousel";
 import SiteFooter from "@/components/site/SiteFooter";
 import SiteHeader from "@/components/site/SiteHeader";
@@ -22,8 +23,8 @@ export default async function ItemDetailsPage({ params }: { params: Promise<{ ty
   const owner = user?.id === report.userId;
   const occurredAt = "lostAt" in report ? report.lostAt : report.foundAt;
   const details = report as typeof report & { subcategory?: string | null; brand?: string | null; model?: string | null; color?: string | null; material?: string | null; identifyingMarks?: string | null; approximateTime?: string | null; locationDetails?: string | null; privateDetails?: string | null; contactedAbout?: string | null; custodyStatus?: string | null };
-  const custodyLabels: Record<string, string> = { WITH_FINDER: "With the finder", SECURITY_OFFICE: "Submitted to a security office", HANDED_OVER: "With a REVOK Steward", UNKNOWN: "Not specified" };
-  const existingClaim = type === "FOUND" && user && !owner ? await prisma.claim.findFirst({ where: { userId: user.id, foundItemId: id }, select: { status: true } }) : null;
+  const custodyLabels: Record<string, string> = { WITH_FINDER: "With the finder", SECURITY_OFFICE: "Submitted to a security office", HANDED_OVER: "Legacy Steward handover", WITH_STEWARD: "With a REVOK Steward", HANDOVER_PENDING: "Steward handover requested", UNKNOWN: "Not specified" };
+  const existingClaim = type === "FOUND" && user && !owner ? await prisma.claim.findFirst({ where: { userId: user.id, foundItemId: id, status: { in: ["PENDING", "APPROVED"] } }, select: { status: true } }) : null;
   const claimAccess = !user ? "guest" : owner ? "owner" : user.status !== "ACTIVE" ? "restricted" : canClaim(user.status, user.phoneNumberVerified) ? "eligible" : "unverified";
   const lostTokens = type === "LOST" ? normalizeSearchText(`${report.title} ${details.brand ?? ""} ${details.color ?? ""}`).split(" ").filter((token) => token.length >= 3).slice(0, 5) : [];
   const matchConditions = [{ categoryId: report.categoryId }, ...lostTokens.flatMap((token) => [{ title: { contains: token, mode: "insensitive" as const } }, { description: { contains: token, mode: "insensitive" as const } }, { brand: { contains: token, mode: "insensitive" as const } }, { color: { contains: token, mode: "insensitive" as const } }, { location: { contains: token, mode: "insensitive" as const } }])];
@@ -35,6 +36,7 @@ export default async function ItemDetailsPage({ params }: { params: Promise<{ ty
       <div className="item-detail-copy"><span className={`report-kind report-kind-${type.toLowerCase()}`}>{type === "LOST" ? "Lost item" : "Found item"}</span><p className="eyebrow">{report.category.name}{details.subcategory ? ` · ${details.subcategory}` : ""}</p><h1 className="page-title">{report.title}</h1><p>{report.description}</p>
         <dl className="item-detail-facts"><div><dt>{type === "LOST" ? "Last seen" : "Found at"}</dt><dd>{report.location}{details.locationDetails ? ` · ${details.locationDetails}` : ""}</dd></div>{occurredAt && <div><dt>{type === "LOST" ? "Date lost" : "Date found"}</dt><dd>{occurredAt.toLocaleDateString()}{details.approximateTime ? ` · ${details.approximateTime}` : ""}</dd></div>}{details.brand && <div><dt>Brand</dt><dd>{details.brand}</dd></div>}{details.model && <div><dt>Model</dt><dd>{details.model}</dd></div>}{details.color && <div><dt>Color</dt><dd>{details.color}</dd></div>}{details.material && <div><dt>Material or appearance</dt><dd>{details.material}</dd></div>}{details.identifyingMarks && <div><dt>Visible distinguishing marks</dt><dd>{details.identifyingMarks}</dd></div>}{type === "FOUND" && details.custodyStatus && <div><dt>Current custody</dt><dd>{custodyLabels[details.custodyStatus] ?? "Not specified"}</dd></div>}{owner && details.privateDetails && <div className="private-detail"><dt>Private verification detail (owner only)</dt><dd>{details.privateDetails}</dd></div>}{owner && details.contactedAbout && <div className="private-detail"><dt>Already contacted</dt><dd>{details.contactedAbout}</dd></div>}</dl>
         {type === "FOUND" && <div className="item-claim-action"><ClaimForm foundItemId={report.id} itemTitle={report.title} access={claimAccess} existingStatus={existingClaim?.status ?? null} /></div>}
+        <ReportCommunicationActions type={type} id={report.id} title={report.title} signedIn={Boolean(user)} canSend={user?.status === "ACTIVE"} owner={owner} />
         <p className="report-privacy-note">Contact details and private verification information are not shown on public reports. Arrange a safe handover in a public place.</p>
       </div>
     </article>

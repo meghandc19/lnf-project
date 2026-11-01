@@ -1,12 +1,12 @@
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
-import { readStoredImage } from "@/lib/uploads/images";
+import { isSupportedImageMimeType, readStoredImage } from "@/lib/uploads/images";
 
 export const runtime = "nodejs";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ filename: string }> }) {
   const { filename } = await params;
-  if (!/^[a-f0-9-]{36}\.(jpg|png|webp)$/i.test(filename)) {
+  if (!/^[a-f0-9-]{36}\.(jpg|png|webp|gif|bmp|avif|heic|heif)$/i.test(filename)) {
     return new Response("Not found", { status: 404 });
   }
 
@@ -28,7 +28,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
       prisma.foundItem.findFirst({ where: reportFilter, select: { images: { where: { storageKey }, select: { mimeType: true } } } }),
     ]);
     const mimeType = lost?.images[0]?.mimeType ?? found?.images[0]?.mimeType;
-    if (!mimeType || !["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+    if (!mimeType || !isSupportedImageMimeType(mimeType)) {
       return new Response("Not found", { status: 404 });
     }
 

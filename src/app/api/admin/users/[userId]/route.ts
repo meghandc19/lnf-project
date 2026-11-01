@@ -32,10 +32,12 @@ export async function GET(
         id: true,
         name: true,
         username: true,
+        image: true,
         phoneNumber: true,
         role: true,
         status: true,
         createdAt: true,
+        _count: { select: { claims: true, lostItems: true, foundItems: true, sentReportMessages: true, ownedReportMessages: true } },
         lostItems: {
           orderBy: { createdAt: "desc" },
           select: { id: true, title: true, status: true, moderation: true, createdAt: true, deletedAt: true, _count: { select: { claims: true } } },
@@ -59,7 +61,7 @@ export async function PATCH(
 ) {
   try {
     const actor = await requireAdmin();
-    if (actor.role === "USER") throw forbidden();
+    if (actor.role !== "ADMIN" && actor.role !== "SUPER_ADMIN") throw forbidden();
     if (!isSameOriginRequest(request)) {
       return NextResponse.json({ error: "We couldn’t verify this page request. Refresh REVOK and try again." }, { status: 403 });
     }

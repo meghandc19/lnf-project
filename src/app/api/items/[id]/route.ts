@@ -46,9 +46,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (categoryName && !ITEM_CATEGORIES.includes(categoryName as (typeof ITEM_CATEGORIES)[number])) return Response.json({ message: "Select a valid category." }, { status: 400 });
     const category = categoryName ? await prisma.category.upsert({ where: { name: categoryName }, create: { name: categoryName }, update: {}, select: { id: true } }) : null;
     const where = reportOwnerWhere(id, user.id);
+    if (type === "FOUND") {
+      const activeClaims = await prisma.claim.count({ where: { foundItemId: id, status: { in: ["PENDING", "APPROVED"] } } });
+      if (activeClaims) return Response.json({ message: "This item has active claim requests. Editing it is temporarily unavailable until the claims are resolved." }, { status: 409 });
+      const custody = await prisma.foundItem.findFirst({ where, select: { custodianId: true, custodyStatus: true } });
+      if (custody?.custodianId || custody?.custodyStatus === "HANDOVER_PENDING" || custody?.custodyStatus === "WITH_STEWARD" || custody?.custodyStatus === "HANDED_OVER") return Response.json({ message: "This item is in a Steward handover or custody. Editing is temporarily unavailable." }, { status: 409 });
+    }
     const data = { ...editableFields, ...(category ? { categoryId: category.id } : {}), ...(occurredAt ? type === "LOST" ? { lostAt: occurredAt } : { foundAt: occurredAt } : {}), ...(Object.keys(editableFields).length || category || occurredAt ? { moderation: "PENDING" as const } : {}), ...(status ? { status } : {}) };
-    const result = type === "LOST" ? await prisma.lostItem.updateMany({ where, data }) : await prisma.foundItem.updateMany({ where, data });
-    if (!result.count) return Response.json({ message: "Report not found or not editable." }, { status: 404 });
+    const result = type === "LOST" ? await prisma.lostItem.updateMany({ where, data }) : await prisma.foundItem.updateMany({ where: { ...where, custodianId: null, claims: { none: { status: { in: ["PENDING", "APPROVED"] } } }, OR: [{ custodyStatus: null }, { custodyStatus: { not: "HANDOVER_PENDING" } }] }, data });
+    if (!result.count) {
+      const locked = type === "FOUND" && await prisma.claim.count({ where: { foundItemId: id, status: { in: ["PENDING", "APPROVED"] } } });
+      if (locked) return Response.json({ message: "This item has active claim requests. Editing it is temporarily unavailable until the claims are resolved." }, { status: 409 });
+      return Response.json({ message: "Report not found or not editable." }, { status: 404 });
+    }
     return Response.json({ ok: true });
   } catch (error) { return handleApiError(error); }
 }
@@ -63,9 +73,19 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const type = getKind(request);
     if (!type) return Response.json({ message: "Invalid report type." }, { status: 400 });
     const where = reportOwnerWhere(id, user.id);
+    if (type === "FOUND") {
+      const activeClaims = await prisma.claim.count({ where: { foundItemId: id, status: { in: ["PENDING", "APPROVED"] } } });
+      if (activeClaims) return Response.json({ message: "This item has active claim requests. Deleting it is temporarily unavailable until the claims are resolved." }, { status: 409 });
+      const custody = await prisma.foundItem.findFirst({ where, select: { custodianId: true, custodyStatus: true } });
+      if (custody?.custodianId || custody?.custodyStatus === "HANDOVER_PENDING" || custody?.custodyStatus === "WITH_STEWARD" || custody?.custodyStatus === "HANDED_OVER") return Response.json({ message: "This item is in a Steward handover or custody. Deleting it is temporarily unavailable." }, { status: 409 });
+    }
     const data = { deletedAt: new Date(), status: "REMOVED" as const };
-    const result = type === "LOST" ? await prisma.lostItem.updateMany({ where, data }) : await prisma.foundItem.updateMany({ where, data });
-    if (!result.count) return Response.json({ message: "Report not found or not yours." }, { status: 404 });
+    const result = type === "LOST" ? await prisma.lostItem.updateMany({ where, data }) : await prisma.foundItem.updateMany({ where: { ...where, custodianId: null, claims: { none: { status: { in: ["PENDING", "APPROVED"] } } }, OR: [{ custodyStatus: null }, { custodyStatus: { not: "HANDOVER_PENDING" } }] }, data });
+    if (!result.count) {
+      const locked = type === "FOUND" && await prisma.claim.count({ where: { foundItemId: id, status: { in: ["PENDING", "APPROVED"] } } });
+      if (locked) return Response.json({ message: "This item has active claim requests. Deleting it is temporarily unavailable until the claims are resolved." }, { status: 409 });
+      return Response.json({ message: "Report not found or not yours." }, { status: 404 });
+    }
     return Response.json({ ok: true });
   } catch (error) { return handleApiError(error); }
 }

@@ -79,8 +79,9 @@ export async function POST(request: Request) {
       update: {},
       select: { id: true },
     });
-    const report = parsed.data.type === "LOST"
-      ? await prisma.lostItem.create({
+    const report = await prisma.$transaction(async (tx) => {
+      const created = parsed.data.type === "LOST"
+        ? await tx.lostItem.create({
           data: {
             userId: user.id, categoryId: category.id, title: parsed.data.title,
             description: parsed.data.description, location: parsed.data.location,
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
           },
           select: { id: true, title: true, moderation: true },
         })
-      : await prisma.foundItem.create({
+        : await tx.foundItem.create({
           data: {
             userId: user.id, categoryId: category.id, title: parsed.data.title,
             description: parsed.data.description, location: parsed.data.location,
@@ -106,11 +107,29 @@ export async function POST(request: Request) {
           },
           select: { id: true, title: true, moderation: true },
         });
+      const friendships = await tx.friendship.findMany({ where: { status: "ACCEPTED", OR: [{ requesterId: user.id }, { recipientId: user.id }] }, select: { requesterId: true, recipientId: true } });
+      const friendIds = [...new Set(friendships.map((friendship) => friendship.requesterId === user.id ? friendship.recipientId : friendship.requesterId))];
+      if (friendIds.length) {
+        const activeFriends = await tx.user.findMany({ where: { id: { in: friendIds }, status: "ACTIVE", deletedAt: null }, select: { id: true } });
+        await tx.notification.createMany({
+          data: activeFriends.map((friend) => ({
+            userId: friend.id,
+            type: "FRIEND_REPORT" as const,
+            title: `Your friend reported a ${parsed.data.type === "LOST" ? "lost" : "found"} item`,
+            message: `Your friend ${user.name}${user.username ? ` (@${user.username})` : ""} reported a ${parsed.data.type === "LOST" ? "lost" : "found"} item: ${created.title}.`,
+            ...(parsed.data.type === "LOST" ? { lostItemId: created.id } : { foundItemId: created.id }),
+            dedupeKey: `friend-report:${created.id}:${friend.id}`,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      return created;
+    });
 
     return Response.json({ ok: true, report: { ...report, type: parsed.data.type } }, { status: 201 });
   } catch (error) {
     await Promise.allSettled(savedImages.map(removeStoredImage));
-    if (error instanceof Error && (error.message.startsWith("Choose a JPEG") || error.message.startsWith("Use a JPEG") || error.message.startsWith("Image size exceeded") || error.message.startsWith("The selected photo") || error.message.startsWith("This file"))) {
+    if (error instanceof Error && (["Choose a JPEG", "Use a JPEG", "Use a supported", "Image size exceeded", "The selected photo", "This file"].some((prefix) => error.message.startsWith(prefix)))) {
       return Response.json({ message: error.message }, { status: 400 });
     }
     return handleApiError(error);
