@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "test:security": "node --test src/lib/security/rate-limit.test.mjs src/lib/auth/access.test.mjs src/lib/profile/validation.test.mjs src/lib/validation/common.test.mjs",
