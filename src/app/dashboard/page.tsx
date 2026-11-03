@@ -16,13 +16,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   const view = (await searchParams)?.view;
   const showKind = view === "lost" || view === "found" ? view.toUpperCase() : null;
   const participant = { is: { participants: { some: { userId: user.id, deletedAt: null } } } };
-  const [lostCount, foundCount, sentClaims, receivedClaims, lostRows, foundRows] = await Promise.all([
+  const [lostCount, foundCount, sentClaims, receivedClaims, lostRows, foundRows, sentHints] = await Promise.all([
     prisma.lostItem.count({ where: { userId: user.id, deletedAt: null } }),
     prisma.foundItem.count({ where: { userId: user.id, deletedAt: null } }),
     prisma.claim.count({ where: { userId: user.id, foundItemId: { not: null }, foundItem: { userId: { not: user.id } }, conversation: participant } }),
     prisma.claim.count({ where: { foundItem: { userId: user.id }, userId: { not: user.id }, conversation: participant } }),
     prisma.lostItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { updatedAt: "desc" }, include: { images: true, category: true, _count: { select: { reportMessages: { where: { parentMessageId: null } } } } } }),
     prisma.foundItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { updatedAt: "desc" }, include: { images: true, category: true, _count: { select: { reportMessages: { where: { parentMessageId: null } } } }, claims: { where: { status: { in: ["PENDING", "APPROVED"] } }, select: { id: true } } } }),
+    prisma.reportMessage.findMany({ where: { senderId: user.id, parentMessageId: null, kind: "HINT" }, orderBy: { createdAt: "desc" }, take: 50, include: { sender: { select: { name: true } }, replies: { orderBy: { createdAt: "asc" }, take: 100, include: { sender: { select: { name: true } } } }, lostItem: { select: { id: true, title: true, deletedAt: true } }, foundItem: { select: { id: true, title: true, deletedAt: true } } } }),
   ]);
   type Report = { id: string; type: "LOST" | "FOUND"; title: string; category: { name: string }; location: string; images: { url: string }[]; occurredAt: Date; updatedAt: Date; status: string; moderation: string; communicationCount: number };
   const reports: Report[] = [
@@ -57,6 +58,19 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
     {showKind ? <section className="dashboard-reports" aria-labelledby="dashboard-reports-title"><div className="dashboard-section-heading"><div><p className="eyebrow">Your history</p><h2 id="dashboard-reports-title">My {showKind === "LOST" ? "Lost" : "Found"} Reports</h2></div><div className="button-row"><Link className="button button-outline" href="/dashboard">Dashboard</Link><Link className="button button-primary" href={showKind === "LOST" ? "/report/lost" : "/report/found"}>Report {showKind.toLowerCase()}</Link></div></div>
       {reports.length ? <div className="dashboard-report-list">{reports.map(renderReport)}</div> : <div className="empty-state dashboard-empty"><h2>No {showKind.toLowerCase()} reports yet.</h2><p>Your reports will appear here after you submit one.</p></div>}
     </section> : null}
+    <section className="dashboard-sent-hints" aria-labelledby="dashboard-sent-hints-title"><div className="dashboard-section-heading"><div><p className="eyebrow">Private conversations</p><h2 id="dashboard-sent-hints-title">Hints by you</h2><p>Hints you sent and replies from the report owner, kept together by item.</p></div><span className="status-chip">{sentHints.length}</span></div>
+      {sentHints.length ? <div className="dashboard-sent-hint-list">{sentHints.map((hint) => {
+        const report = hint.lostItem ?? hint.foundItem;
+        const reportType = hint.lostItem ? "lost" : "found";
+        const messages = [hint, ...hint.replies].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        return <article className="dashboard-sent-hint" key={hint.id}>
+          <header className="dashboard-sent-hint-heading"><div><span className="report-kind">{reportType === "lost" ? "Lost report" : "Found report"}</span><h3>{report?.title ?? "Report unavailable"}</h3><small>Hint sent {hint.createdAt.toLocaleDateString()}</small></div>{report && !report.deletedAt && <Link className="button button-outline" href={`/dashboard/reports/${reportType}/${encodeURIComponent(report.id)}/communications?thread=${encodeURIComponent(hint.id)}`}>Open conversation</Link>}</header>
+          <div className="dashboard-sent-hint-chat" role="list" aria-label={`Hint conversation about ${report?.title ?? "an unavailable report"}`}>
+            {messages.map((entry) => <article className={`dashboard-sent-hint-message${entry.senderId === user.id ? " is-mine" : ""}`} role="listitem" key={entry.id}><strong>{entry.senderId === user.id ? "You" : entry.sender.name}</strong><p>{entry.body}</p><time dateTime={entry.createdAt.toISOString()}>{entry.createdAt.toLocaleString()}</time></article>)}
+          </div>
+        </article>;
+      })}</div> : <div className="empty-state dashboard-empty"><h3>No hints sent yet</h3><p>Hints you send from a report will appear here with replies from its owner.</p></div>}
+    </section>
     {user.role === "REVOK_STEWARD" && <StewardDashboard />}
   </main><SiteFooter /></div>;
 }

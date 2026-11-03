@@ -116,7 +116,9 @@ export async function POST(request: Request) {
       message: "Phone number verified successfully.",
     });
   } catch (error) {
-    console.error("VERIFY PHONE ERROR", { name: error instanceof Error ? error.name : "UnknownError" });
+    if (error instanceof Error && error.message === "The SMS verification service is temporarily unavailable.") {
+      return NextResponse.json({ error: "OTP_PROVIDER_UNAVAILABLE", message: "Phone verification is temporarily unavailable. Please try again shortly." }, { status: 503 });
+    }
 
     return NextResponse.json(
       {

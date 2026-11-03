@@ -13,13 +13,13 @@
 - [x] Security hardening (account-status and admin guard review)
 - [ ] Auth abuse testing
 
-Phase 1 verification note: unit tests cover the fixed-window limiter, access policy, local terminal OTP delivery, and production fail-closed behavior. Live auth abuse tests and shared production rate-limit storage remain pending.
+Phase 1 verification note: unit tests cover the fixed-window limiter and access policy. MSG91 delivery requires live account credentials for integration testing; additional custom route limits still need shared production storage.
 
 ## Phase 2 - Basic Website
 - [x] Home page (no fabricated listings; clear unavailable-feature state)
 - [x] Navbar
 - [x] Login page
-- [x] Signup page UI (opt-in local terminal OTP; no SMS provider)
+- [x] Signup page UI (MSG91 server-side OTP; live provider delivery not yet verified)
 - [x] Profile editor (display name, about, local photo upload, OTP-verified phone replacement)
 - [x] Dashboard page (basic authenticated shell)
 - [x] Responsive mobile-first landing page and account navigation (physical browser/device review remains)

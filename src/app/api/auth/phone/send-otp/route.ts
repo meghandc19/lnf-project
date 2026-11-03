@@ -1,6 +1,4 @@
 import { auth } from "@/lib/auth/auth";
-import { takeDevelopmentOtp } from "@/lib/auth/sms";
-import { handleApiError } from "@/lib/api/handle-error";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 
@@ -16,22 +14,15 @@ export async function POST(request: Request) {
   }
 
   const phoneNumber = normalizeIndianPhone(parsed.data);
+  const cooldown = checkRateLimit(hashRateLimitKey("otp-send-cooldown", phoneNumber), 1, 60 * 1000);
+  if (!cooldown.allowed) return rateLimitResponse(cooldown.retryAfterMs);
   const limit = checkRateLimit(hashRateLimitKey("signup-send-otp-phone", phoneNumber), 3, 60 * 60 * 1000);
   if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
 
   try {
     await auth.api.sendPhoneNumberOTP({ body: { phoneNumber } });
-    const developmentCode = process.env.NODE_ENV === "development" ? takeDevelopmentOtp(phoneNumber) : undefined;
-    if (process.env.NODE_ENV === "development" && !developmentCode) {
-      throw new Error("The local verification code could not be prepared.");
-    }
-
-    return Response.json({
-      success: true,
-      message: developmentCode ? "Local development code ready. It expires in 5 minutes." : "Verification code sent.",
-      ...(developmentCode ? { developmentCode } : {}),
-    });
-  } catch (error) {
-    return handleApiError(error);
+    return Response.json({ success: true, message: "Verification code sent." });
+  } catch {
+    return Response.json({ error: "OTP_DELIVERY_FAILED", message: "The verification code could not be sent. Check the number and try again later." }, { status: 503 });
   }
 }

@@ -11,7 +11,6 @@ import {
   hashRateLimitKey,
   rateLimitResponse,
 } from "@/lib/security/rate-limit";
-import { takeDevelopmentOtp } from "@/lib/auth/sms";
 
 const phoneSchema = z.object({ phoneNumber: indianPhoneSchema });
 
@@ -48,6 +47,9 @@ export async function POST(request: Request) {
 
   // Match the national-format value used by Better Auth's phone signup and login.
   const phoneNumber = normalizeIndianPhone(result.data.phoneNumber);
+
+  const cooldown = checkRateLimit(hashRateLimitKey("otp-send-cooldown", phoneNumber), 1, 60 * 1000);
+  if (!cooldown.allowed) return rateLimitResponse(cooldown.retryAfterMs);
 
   const phoneLimit = checkRateLimit(
     hashRateLimitKey("account-send-otp-phone", phoneNumber),
@@ -97,19 +99,8 @@ export async function POST(request: Request) {
       },
     });
 
-    const developmentCode = process.env.NODE_ENV === "development" ? takeDevelopmentOtp(phoneNumber) : undefined;
-    if (process.env.NODE_ENV === "development" && !developmentCode) {
-      throw new Error("The local verification code could not be prepared.");
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: developmentCode ? "Local development code ready. It expires in 5 minutes." : "Verification code sent.",
-      ...(developmentCode ? { developmentCode } : {}),
-    });
-  } catch (error) {
-    console.error("SEND PHONE OTP ERROR", { name: error instanceof Error ? error.name : "UnknownError" });
-
+    return NextResponse.json({ success: true, message: "Verification code sent." });
+  } catch {
     return NextResponse.json(
       { error: "OTP_DELIVERY_FAILED", message: "The verification code could not be delivered. Check the SMS provider configuration and try again." },
       { status: 500 },

@@ -3,13 +3,14 @@ import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { phoneNumber, username } from "better-auth/plugins";
 import { prisma } from "@/lib/prisma";
-import { deliverPhoneOtp } from "@/lib/auth/sms";
+import { deliverPhoneOtp, getOtpProviderConfig, verifyMsg91Otp } from "@/lib/auth/sms";
 import { ensureConfiguredSuperAdmin } from "@/lib/auth/configured-super-admin";
 import { isIP } from "node:net";
 import { networkInterfaces } from "node:os";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const otpProviderConfig = getOtpProviderConfig();
 const developmentHosts = [
   "localhost",
   "127.0.0.1",
@@ -77,7 +78,7 @@ export const auth = betterAuth({
 
   rateLimit: {
     enabled: true,
-    storage: "memory",
+    storage: process.env.NODE_ENV === "production" ? "database" : "memory",
     customRules: {
       "/sign-in/username": { window: 60, max: 5 },
       "/sign-in/phone-number": { window: 60, max: 5 },
@@ -170,9 +171,10 @@ export const auth = betterAuth({
       },
       requireVerification: true,
 
-      otpLength: 6,
-      expiresIn: 300,
+      otpLength: otpProviderConfig.otpLength,
+      expiresIn: otpProviderConfig.otpExpiryMinutes * 60,
       allowedAttempts: 3,
+      verifyOTP: async ({ phoneNumber, code }) => verifyMsg91Otp({ phoneNumber, code }),
 
       signUpOnVerification: {
         getTempEmail: (phoneNumber) => {
@@ -190,5 +192,8 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
+  },
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === "production",
   },
 });

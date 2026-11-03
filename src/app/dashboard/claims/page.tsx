@@ -31,7 +31,7 @@ export default async function DashboardClaimsPage({ searchParams }: { searchPara
   });
 
   return <div className="site-page"><SiteHeader /><main className="dashboard-main page-width claims-hub-page">
-    <Link className="button button-outline" href="/dashboard/claims">â† Claim requests</Link><p className="eyebrow">{view === "sent" ? "My Claims" : "Claim Requests Received"}</p><h1 className="page-title">{view === "sent" ? "My Claims" : "Claim Requests Received"}</h1>
+    <Link className="button button-outline" href="/dashboard/claims">← Claim requests</Link><p className="eyebrow">{view === "sent" ? "My Claims" : "Claim Requests Received"}</p><h1 className="page-title">{view === "sent" ? "My Claims" : "Claim Requests Received"}</h1>
     <nav className="claim-list-switch" aria-label="Claim conversation lists"><Link className={view === "sent" ? "is-current" : ""} href="/dashboard/claims?view=sent">My Claims</Link><Link className={view === "received" ? "is-current" : ""} href="/dashboard/claims?view=received">Claim Requests Received</Link></nav>
     <ConversationList initialItems={conversations} emptyText={view === "sent" ? "Claim requests you send will appear here." : "No claim requests have been received for your found items yet."} />
   </main><SiteFooter /></div>;

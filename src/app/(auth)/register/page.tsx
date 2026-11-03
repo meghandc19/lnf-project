@@ -22,7 +22,6 @@ export default function RegisterPage() {
   const [message, setMessage] = useState("");
   const [usernameAvailability, setUsernameAvailability] = useState("");
   const [usernameAvailabilityState, setUsernameAvailabilityState] = useState<"idle" | "checking" | "available" | "taken" | "invalid" | "error">("idle");
-  const [developmentCode, setDevelopmentCode] = useState("");
 
   useEffect(() => {
     if (step !== "details") return;
@@ -85,7 +84,7 @@ export default function RegisterPage() {
         return;
       }
       setPhoneNumber(normalizedPhone);
-      setDevelopmentCode(result.developmentCode ?? "");
+      setOtp("");
       setStep("otp");
       setMessage(result.message ?? "Verification code sent.");
     } catch {
@@ -193,12 +192,12 @@ export default function RegisterPage() {
           {step === "otp" && (
             <div className="auth-form">
               <p className="auth-help">Enter the six-digit code sent to {phoneNumber}.</p>
-              {developmentCode && <p className="local-dev-code" role="status">Local development code: <strong>{developmentCode}</strong><span>Expires in 5 minutes.</span></p>}
               <label className="auth-field" htmlFor="register-otp">Verification code
                 <input id="register-otp" type="text" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" maxLength={6} required />
               </label>
               <button className="auth-submit" type="button" onClick={verifyOtp} disabled={loading || otp.length !== 6}>{loading ? "Verifying…" : "Verify phone"}</button>
-              <button className="button button-outline" type="button" onClick={() => { setStep("phone"); setMessage(""); setOtp(""); setDevelopmentCode(""); }}>Change phone number</button>
+              <button className="button button-outline" type="button" onClick={sendOtp} disabled={loading}>{loading ? "Sending…" : "Resend code"}</button>
+              <button className="button button-outline" type="button" onClick={() => { setStep("phone"); setMessage(""); setOtp(""); }}>Change phone number</button>
             </div>
           )}
 

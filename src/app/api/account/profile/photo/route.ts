@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         data: { image: stored.url },
         select: { image: true },
       });
-      const oldKey = user.image?.match(/^\/uploads\/(profiles\/[a-f0-9-]+\.(?:jpg|png|webp|gif|bmp|avif|heic|heif))$/i)?.[1];
+      const oldKey = user.image?.match(/^\/(?:api\/uploads|uploads)\/(profiles\/[a-f0-9-]+\.(?:jpg|png|webp|gif|bmp|avif|heic|heif))$/i)?.[1];
       if (oldKey) {
         try { await removeStoredImage(oldKey); } catch { /* Keep the saved photo valid if old-file cleanup fails. */ }
       }
@@ -42,6 +42,26 @@ export async function POST(request: Request) {
     if (error instanceof Error && ["Use a JPEG", "Use a supported", "Image size exceeded", "The selected photo", "This file does not match"].some((prefix) => error.message.startsWith(prefix))) {
       return Response.json({ message: error.message }, { status: 400 });
     }
+    return handleApiError(error);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    if (request.headers.get("origin") !== new URL(request.url).origin) {
+      return Response.json({ message: "This photo removal is not allowed." }, { status: 403 });
+    }
+    const user = await requireActiveUser();
+    const limit = checkRateLimit(hashRateLimitKey("profile-photo", user.id), 10, 60 * 60 * 1000);
+    if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
+
+    const oldKey = user.image?.match(/^\/(?:api\/uploads|uploads)\/(profiles\/[a-f0-9-]+\.(?:jpg|png|webp|gif|bmp|avif|heic|heif))$/i)?.[1];
+    await prisma.user.update({ where: { id: user.id }, data: { image: null }, select: { id: true } });
+    if (oldKey) {
+      try { await removeStoredImage(oldKey); } catch { /* The profile is already cleared; stale-file cleanup can be retried separately. */ }
+    }
+    return Response.json({ ok: true, image: null });
+  } catch (error) {
     return handleApiError(error);
   }
 }

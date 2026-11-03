@@ -56,7 +56,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ type
       select: { id: true, kind: true, body: true, location: true, sightingAt: true, createdAt: true, parentMessageId: true, senderId: true, sender: { select: { id: true, name: true, username: true, image: true } } },
     });
     const filtered = threadId && !isOwner && !isModerator ? messages.filter((message) => message.id === threadId || message.parentMessageId === threadId) : messages;
-    return Response.json({ report: { id: report.id, type: type.toUpperCase(), title: report.title }, isOwner, isModerator, canReply: isOwner || (!isModerator && Boolean(threadId)), messages: filtered }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json({ report: { id: report.id, type: type.toUpperCase(), title: report.title }, isOwner, isModerator, canReply: user.status === "ACTIVE" && (isOwner || (!isModerator && Boolean(threadId))), messages: filtered }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return handleApiError(error); }
 }
 

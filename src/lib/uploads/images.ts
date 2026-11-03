@@ -73,11 +73,11 @@ export async function validateImage(file: File, maxBytes: number) {
 export async function storeImage(scope: "profiles" | "items", file: File, maxBytes: number) {
   const { bytes, mimeType, extension } = await validateImage(file, maxBytes);
   const filename = `${randomUUID()}${extension}`;
-  const driver = scope === "items" ? storageDriver() : "filesystem";
+  const driver = storageDriver();
   const storageKey = `${scope}/${filename}`;
   if (driver === "s3") {
     await s3Request("PUT", storageKey, bytes, mimeType);
-    return { url: `/api/uploads/items/${filename}`, storageKey, mimeType, sizeBytes: bytes.byteLength };
+    return { url: `/api/uploads/${scope}/${filename}`, storageKey, mimeType, sizeBytes: bytes.byteLength };
   }
   const directory = scope === "profiles"
     ? path.join(process.cwd(), "public", "uploads", "profiles")
@@ -95,7 +95,7 @@ export async function storeImage(scope: "profiles" | "items", file: File, maxByt
 export async function removeStoredImage(storageKey: string) {
   if (!/^(profiles|items)\/[a-f0-9-]+\.(jpg|png|webp|gif|bmp|avif|heic|heif)$/i.test(storageKey)) return;
   const [scope, filename] = storageKey.split("/");
-  if (scope === "items" && storageDriver() === "s3") {
+  if (storageDriver() === "s3") {
     await s3Request("DELETE", storageKey);
     return;
   }
@@ -110,9 +110,13 @@ export async function removeStoredImage(storageKey: string) {
 }
 
 export async function readStoredImage(storageKey: string) {
-  if (!/^items\/[a-f0-9-]+\.(jpg|png|webp|gif|bmp|avif|heic|heif)$/i.test(storageKey)) throw new Error("Invalid image key.");
+  if (!/^(profiles|items)\/[a-f0-9-]+\.(jpg|png|webp|gif|bmp|avif|heic|heif)$/i.test(storageKey)) throw new Error("Invalid image key.");
   if (storageDriver() === "s3") {
     return await s3Request("GET", storageKey);
   }
-  return new Uint8Array(await readFile(path.join(process.cwd(), ".data", "uploads", "items", storageKey.split("/")[1])));
+  const [scope, filename] = storageKey.split("/");
+  const filePath = scope === "profiles"
+    ? path.join(process.cwd(), "public", "uploads", "profiles", filename)
+    : path.join(process.cwd(), ".data", "uploads", "items", filename);
+  return new Uint8Array(await readFile(filePath));
 }

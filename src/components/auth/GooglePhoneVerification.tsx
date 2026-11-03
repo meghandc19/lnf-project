@@ -11,7 +11,6 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [developmentCode, setDevelopmentCode] = useState("");
 
   async function sendOtp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,7 +34,6 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
         return;
       }
       setPhone(normalizedPhone);
-      setDevelopmentCode(result.developmentCode ?? "");
       setStep("otp");
       setMessage(result.message ?? "Verification code sent.");
     } catch {
@@ -70,6 +68,23 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
     }
   }
 
+  async function resendOtp() {
+    setLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/account/phone/send-otp", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber: phone }),
+      });
+      const result = await response.json();
+      if (!response.ok) { setMessage(result.message ?? "Could not resend the code. Please try again later."); return; }
+      setCode("");
+      setMessage("A new verification code was sent.");
+    } catch {
+      setMessage("Could not resend the code. Please try again later.");
+    } finally { setLoading(false); }
+  }
+
   return (
     <>
       {step === "phone" ? (
@@ -83,12 +98,12 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
       ) : (
         <form className="auth-form" onSubmit={verifyPhone}>
           <p className="auth-help">Enter the six-digit code sent to {phone}.</p>
-          {developmentCode && <p className="local-dev-code" role="status">Local development code: <strong>{developmentCode}</strong><span>Expires in 5 minutes.</span></p>}
           <label className="auth-field" htmlFor="google-signup-otp">Verification code
             <input id="google-signup-otp" type="text" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" maxLength={6} required />
           </label>
           <button className="auth-submit" type="submit" disabled={loading || code.length !== 6}>{loading ? "Verifying…" : "Verify phone"}</button>
-          <button className="button button-outline" type="button" onClick={() => { setStep("phone"); setCode(""); setMessage(""); setDevelopmentCode(""); }}>Change phone number</button>
+          <button className="button button-outline" type="button" onClick={resendOtp} disabled={loading}>{loading ? "Sending…" : "Resend code"}</button>
+          <button className="button button-outline" type="button" onClick={() => { setStep("phone"); setCode(""); setMessage(""); }}>Change phone number</button>
         </form>
       )}
       {message && <p className="auth-message" role="status" aria-live="polite">{message}</p>}

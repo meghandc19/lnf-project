@@ -17,6 +17,7 @@ export default function ProfileEditor({ user, inventory, canEdit }: { user: Prof
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
   const [photoActionsOpen, setPhotoActionsOpen] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber ?? "");
   const [newPhone, setNewPhone] = useState("");
@@ -25,7 +26,6 @@ export default function ProfileEditor({ user, inventory, canEdit }: { user: Prof
   const [phoneStep, setPhoneStep] = useState<"phone" | "otp">("phone");
   const [phoneMessage, setPhoneMessage] = useState("");
   const [phoneLoading, setPhoneLoading] = useState(false);
-  const [developmentPhoneCode, setDevelopmentPhoneCode] = useState("");
 
   async function uploadPhoto(file?: File) {
     if (!file || !canEdit) return;
@@ -56,6 +56,28 @@ export default function ProfileEditor({ user, inventory, canEdit }: { user: Prof
     }
   }
 
+  async function removePhoto() {
+    if (!image || !canEdit || uploading || removingPhoto) return;
+    setRemovingPhoto(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/account/profile/photo", { method: "DELETE" });
+      const result = await response.json();
+      if (!response.ok) {
+        setMessage(result.message ?? "Could not remove your photo. Please try again.");
+        return;
+      }
+      setImage("");
+      setPhotoActionsOpen(false);
+      setMessage("Your profile photo was removed.");
+      router.refresh();
+    } catch {
+      setMessage("Could not remove your photo. Please try again.");
+    } finally {
+      setRemovingPhoto(false);
+    }
+  }
+
   async function sendPhoneCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPhoneMessage("");
@@ -77,7 +99,6 @@ export default function ProfileEditor({ user, inventory, canEdit }: { user: Prof
         return;
       }
       setNewPhone(normalizedPhone);
-      setDevelopmentPhoneCode(result.developmentCode ?? "");
       setPhoneStep("otp");
       setPhoneMessage(result.message ?? "Verification code sent.");
     } catch {
@@ -105,7 +126,6 @@ export default function ProfileEditor({ user, inventory, canEdit }: { user: Prof
       setChangingPhone(false);
       setPhoneStep("phone");
       setPhoneCode("");
-      setDevelopmentPhoneCode("");
       setNewPhone("");
       setPhoneMessage("Your new phone number is verified. The previous number has been removed from this account.");
       router.refresh();
@@ -114,6 +134,23 @@ export default function ProfileEditor({ user, inventory, canEdit }: { user: Prof
     } finally {
       setPhoneLoading(false);
     }
+  }
+
+  async function resendPhoneCode() {
+    setPhoneLoading(true);
+    setPhoneMessage("");
+    try {
+      const response = await fetch("/api/account/phone/send-otp", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber: newPhone }),
+      });
+      const result = await response.json();
+      if (!response.ok) { setPhoneMessage(result.message ?? "Could not resend the code. Please try again later."); return; }
+      setPhoneCode("");
+      setPhoneMessage("A new verification code was sent.");
+    } catch {
+      setPhoneMessage("Could not resend the code. Please try again later.");
+    } finally { setPhoneLoading(false); }
   }
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
@@ -153,7 +190,7 @@ export default function ProfileEditor({ user, inventory, canEdit }: { user: Prof
         </div>
         {canEdit && photoActionsOpen && <div className="profile-photo-actions">
           <label className="button button-outline profile-photo-change">{uploading ? "Uploading photo…" : "Change photo"}<input type="file" accept="image/*" className="visually-hidden" disabled={uploading} onChange={(event) => { void uploadPhoto(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>
-          {image && <button className="button button-outline profile-photo-remove" type="button" disabled={uploading} onClick={() => { setImage(""); setPhotoActionsOpen(false); setMessage("Photo removed. Save your profile to apply this change."); }}>Remove photo</button>}
+          {image && <button className="button button-outline profile-photo-remove" type="button" disabled={uploading || removingPhoto} onClick={() => void removePhoto()}>Remove photo</button>}
           <span>Common image formats · up to 3 MB</span>
         </div>}
         <label className="auth-field">Display name
@@ -165,7 +202,7 @@ export default function ProfileEditor({ user, inventory, canEdit }: { user: Prof
         </label>
         {user.username && <p className="profile-username">Username <strong>@{user.username}</strong><span>Your username is permanent and cannot be changed.</span></p>}
         {message && <p className="auth-message" role="status">{message}</p>}
-        {canEdit && <button className="auth-submit" type="submit" disabled={saving}>{saving ? "Savingâ€¦" : "Save profile"}</button>}
+        {canEdit && <button className="auth-submit" type="submit" disabled={saving}>{saving ? "Saving…" : "Save profile"}</button>}
       </form>
       <section className="profile-card phone-settings" aria-labelledby="phone-settings-heading">
         <div className="phone-settings-heading"><div><p className="eyebrow">Account security</p><h2 id="phone-settings-heading">Phone number</h2></div><span className={user.phoneNumberVerified ? "verified-chip" : "status-chip"}>{user.phoneNumberVerified ? "Verified" : "Not verified"}</span></div>
@@ -174,12 +211,12 @@ export default function ProfileEditor({ user, inventory, canEdit }: { user: Prof
         {canEdit && changingPhone && (phoneStep === "phone" ? <form className="phone-change-form" onSubmit={sendPhoneCode}>
           <label className="auth-field">New phone number<input type="tel" inputMode="tel" autoComplete="tel" value={newPhone} onChange={(event) => setNewPhone(event.target.value)} placeholder="98765 43210" required /></label>
           <p className="auth-help">Your current number stays on the account until you verify the new one.</p>
-          <div className="button-row"><button className="button button-primary" type="submit" disabled={phoneLoading}>{phoneLoading ? "Sendingâ€¦" : "Send verification code"}</button><button className="button button-outline" type="button" onClick={() => setChangingPhone(false)}>Cancel</button></div>
+          <div className="button-row"><button className="button button-primary" type="submit" disabled={phoneLoading}>{phoneLoading ? "Sending…" : "Send verification code"}</button><button className="button button-outline" type="button" onClick={() => setChangingPhone(false)}>Cancel</button></div>
         </form> : <form className="phone-change-form" onSubmit={verifyNewPhone}>
           <p className="auth-help">Enter the six-digit code sent to {newPhone}.</p>
-          {developmentPhoneCode && <p className="local-dev-code" role="status">Local development code: <strong>{developmentPhoneCode}</strong><span>Expires in 5 minutes.</span></p>}
           <label className="auth-field">Verification code<input type="text" inputMode="numeric" autoComplete="one-time-code" value={phoneCode} onChange={(event) => setPhoneCode(event.target.value.replace(/\D/g, "").slice(0, 6))} maxLength={6} required /></label>
-          <div className="button-row"><button className="button button-primary" type="submit" disabled={phoneLoading || phoneCode.length !== 6}>{phoneLoading ? "Verifyingâ€¦" : "Verify new number"}</button><button className="button button-outline" type="button" onClick={() => { setPhoneStep("phone"); setPhoneCode(""); setPhoneMessage(""); }}>Change number</button></div>
+          <button className="button button-outline" type="button" onClick={resendPhoneCode} disabled={phoneLoading}>{phoneLoading ? "Sending…" : "Resend code"}</button>
+          <div className="button-row"><button className="button button-primary" type="submit" disabled={phoneLoading || phoneCode.length !== 6}>{phoneLoading ? "Verifying…" : "Verify new number"}</button><button className="button button-outline" type="button" onClick={() => { setPhoneStep("phone"); setPhoneCode(""); setPhoneMessage(""); }}>Change number</button></div>
         </form>)}
         {phoneMessage && <p className="auth-message" role="status">{phoneMessage}</p>}
       </section>

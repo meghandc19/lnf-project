@@ -2,6 +2,7 @@ import Link from "next/link";
 import HomeIllustration from "@/components/site/HomeIllustration";
 import SiteFooter from "@/components/site/SiteFooter";
 import SiteHeader from "@/components/site/SiteHeader";
+import HomeIntro from "@/components/site/HomeIntro";
 
 function ActionIcon({ name }: { name: string }) {
   if (name === "lost") return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5M10.8 7.8v6M7.8 10.8h6"/></svg>;
@@ -11,9 +12,10 @@ function ActionIcon({ name }: { name: string }) {
 
 export default function Home() {
   return (
-    <div className="site-page">
-      <SiteHeader home />
-      <main>
+    <HomeIntro>
+      <div className="site-page">
+        <SiteHeader home />
+        <main>
         <section className="home-hero-section">
           <div className="home-hero-grid">
             <div className="home-hero-copy">
@@ -31,8 +33,9 @@ export default function Home() {
           </div>
           <svg className="home-hero-wave" viewBox="0 0 1600 100" preserveAspectRatio="none" aria-hidden="true"><path d="M0 42C180 82 290 82 465 45S760 7 928 46s278 56 422 9 190-52 250-45v90H0Z" fill="currentColor"/><path d="M0 63c200-38 314 52 500 24s272-88 460-49 260 52 403 12 188-34 237-23v73H0Z" fill="currentColor" opacity=".55"/></svg>
         </section>
-      </main>
-      <SiteFooter />
-    </div>
+        </main>
+        <SiteFooter />
+      </div>
+    </HomeIntro>
   );
 }
