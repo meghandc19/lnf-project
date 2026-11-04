@@ -85,10 +85,14 @@ export default function LoginPage() {
     setMessage("");
     setGoogleLoading(true);
     try {
-      await authClient.signIn.social({
+      const result = await authClient.signIn.social({
         provider: "google",
         callbackURL: returnPath(),
       });
+      if (result.error) {
+        setMessage("Google sign-in is temporarily unavailable. Please try again.");
+        setGoogleLoading(false);
+      }
     } catch {
       setMessage("Google sign-in is temporarily unavailable. Please try again.");
       setGoogleLoading(false);
