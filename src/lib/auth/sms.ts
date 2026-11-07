@@ -88,3 +88,290 @@ export async function verifyMsg91Otp({ phoneNumber, code }: OtpDeliveryInput) {
 }
 
 export const deliverPhoneOtp = sendMsg91Otp;
+
+const MSG91_WIDGET_VERIFY_URL = "https://control.msg91.com/api/v5/widget/verifyAccessToken";
+
+export async function verifyWidgetAccessToken(accessToken: string): Promise<{
+  success: boolean;
+  mobile?: string;
+  error?: string;
+}> {
+  const authKey = process.env.MSG91_AUTH_KEY?.trim();
+  if (!authKey) {
+    throw new Error("MSG91 AuthKey is not configured.");
+  }
+  if (!accessToken || typeof accessToken !== "string") {
+    return { success: false, error: "Access token is required." };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(MSG91_WIDGET_VERIFY_URL, {
+      method: "POST",
+      headers: {
+        authkey: authKey,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({ "access-token": accessToken.trim() }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    throw new Error("The SMS verification service is temporarily unavailable.");
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("Authentication failure with SMS provider.");
+    }
+    return { success: false, error: "Verification token could not be verified." };
+  }
+
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = (await response.json()) as Record<string, unknown>;
+  } catch {
+    return { success: false, error: "Malformed response from verification service." };
+  }
+
+  if (!body) {
+    return { success: false, error: "Empty response from verification service." };
+  }
+
+  // Strictly check official MSG91 response schema: { type: "success", message: "91XXXXXXXXXX" }
+  if (body.type !== "success" || typeof body.message !== "string") {
+    const errorMsg = typeof body.message === "string" ? body.message : "Token verification failed.";
+    return { success: false, error: errorMsg };
+  }
+
+  const rawMessage = body.message.trim();
+
+  // Strictly validate Indian mobile number: must begin with 91 followed by valid 10-digit mobile
+  if (!/^91[6-9]\d{9}$/.test(rawMessage)) {
+    return { success: false, error: "Invalid mobile number received from provider." };
+  }
+
+  const national = rawMessage.slice(2);
+  return { success: true, mobile: national };
+}
+
+export function getMsg91WidgetId(): string {
+  return (
+    process.env.MSG91_WIDGET_ID?.trim() ||
+    process.env.NEXT_PUBLIC_MSG91_WIDGET_ID?.trim() ||
+    "366b67695879383238353332"
+  );
+}
+
+const MSG91_WIDGET_SEND_URL = "https://control.msg91.com/api/v5/widget/sendOtp";
+const MSG91_WIDGET_VERIFY_OTP_URL = "https://control.msg91.com/api/v5/widget/verifyOtp";
+const MSG91_WIDGET_RETRY_OTP_URL = "https://control.msg91.com/api/v5/widget/retryOtp";
+
+export async function sendWidgetOtpServer(params: {
+  phoneNumber: string;
+  widgetId?: string;
+}): Promise<{
+  success: boolean;
+  reqId?: string;
+  error?: string;
+}> {
+  const authKey = process.env.MSG91_AUTH_KEY?.trim();
+  if (!authKey) {
+    throw new Error("Phone verification is temporarily unavailable. Please try again later.");
+  }
+
+  const widgetId = params.widgetId || getMsg91WidgetId();
+  const digits = params.phoneNumber.replace(/\D/g, "");
+  const national = digits.startsWith("91") && digits.length === 12 ? digits.slice(2) : digits;
+  if (!/^[6-9]\d{9}$/.test(national)) {
+    return { success: false, error: "Invalid phone number." };
+  }
+  const identifier = `91${national}`;
+
+  let response: Response;
+  try {
+    response = await fetch(MSG91_WIDGET_SEND_URL, {
+      method: "POST",
+      headers: {
+        authkey: authKey,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        widgetId,
+        identifier,
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    throw new Error("The SMS verification service is temporarily unavailable.");
+  }
+
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = (await response.json()) as Record<string, unknown>;
+  } catch {
+    // Non-JSON or empty response
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("Authentication failure with SMS provider.");
+    }
+    const errorMsg = typeof body?.message === "string" ? body.message : "Failed to send verification code.";
+    return { success: false, error: errorMsg };
+  }
+
+  if (!body || typeof body !== "object") {
+    return { success: false, error: "Empty response from verification service." };
+  }
+
+  // Strictly check official MSG91 success response:
+  // Must have type === "success" AND a non-empty string reqId.
+  // Never fallback to body.message as reqId.
+  // If type is "error" or not "success", treat as failure even if HTTP status was 200.
+  if (
+    body.type === "success" &&
+    typeof body.reqId === "string" &&
+    body.reqId.trim().length > 0
+  ) {
+    return { success: true, reqId: body.reqId.trim() };
+  }
+
+  const errorMsg =
+    typeof body.message === "string" && body.message.trim().length > 0
+      ? body.message.trim()
+      : "The verification service reported an error.";
+  return { success: false, error: errorMsg };
+}
+
+export async function verifyWidgetOtpServer(params: {
+  otp: string;
+  reqId?: string;
+  widgetId?: string;
+}): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const authKey = process.env.MSG91_AUTH_KEY?.trim();
+  if (!authKey) {
+    throw new Error("Phone verification is temporarily unavailable. Please try again later.");
+  }
+
+  const widgetId = params.widgetId || getMsg91WidgetId();
+  const trimmedOtp = params.otp.trim();
+  if (!/^\d{4,6}$/.test(trimmedOtp)) {
+    return { success: false, error: "Invalid verification code format." };
+  }
+  if (!params.reqId || typeof params.reqId !== "string" || params.reqId.trim().length === 0) {
+    return { success: false, error: "Invalid or missing verification session." };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(MSG91_WIDGET_VERIFY_OTP_URL, {
+      method: "POST",
+      headers: {
+        authkey: authKey,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        widgetId,
+        reqId: params.reqId.trim(),
+        otp: trimmedOtp,
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    throw new Error("The SMS verification service is temporarily unavailable.");
+  }
+
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = (await response.json()) as Record<string, unknown>;
+  } catch {
+    return { success: false, error: "Malformed response from verification service." };
+  }
+
+  if (!response.ok || !body || typeof body !== "object") {
+    const errorMsg = typeof body?.message === "string" ? body.message : "Verification code could not be validated.";
+    return { success: false, error: errorMsg };
+  }
+
+  // Strictly check type === "success". Any other type (including type: "error" with HTTP 200) is failure.
+  if (body.type === "success") {
+    return { success: true };
+  }
+
+  const errorMsg =
+    typeof body.message === "string" && body.message.trim().length > 0
+      ? body.message.trim()
+      : "Invalid or expired verification code.";
+  return { success: false, error: errorMsg };
+}
+
+export async function retryWidgetOtpServer(params: {
+  reqId?: string;
+  widgetId?: string;
+  channel?: string;
+}): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const authKey = process.env.MSG91_AUTH_KEY?.trim();
+  if (!authKey) {
+    throw new Error("Phone verification is temporarily unavailable. Please try again later.");
+  }
+
+  const widgetId = params.widgetId || getMsg91WidgetId();
+  if (!params.reqId || typeof params.reqId !== "string" || params.reqId.trim().length === 0) {
+    return { success: false, error: "Invalid or missing verification session." };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(MSG91_WIDGET_RETRY_OTP_URL, {
+      method: "POST",
+      headers: {
+        authkey: authKey,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        widgetId,
+        reqId: params.reqId.trim(),
+        ...(params.channel ? { retryChannel: params.channel } : {}),
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    throw new Error("The SMS verification service is temporarily unavailable.");
+  }
+
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = (await response.json()) as Record<string, unknown>;
+  } catch {
+    return { success: false, error: "Malformed response from verification service." };
+  }
+
+  if (!response.ok || !body || typeof body !== "object") {
+    const errorMsg = typeof body?.message === "string" ? body.message : "Failed to resend verification code.";
+    return { success: false, error: errorMsg };
+  }
+
+  if (body.type !== "success") {
+    const errorMsg =
+      typeof body.message === "string" && body.message.trim().length > 0
+        ? body.message.trim()
+        : "Failed to resend verification code.";
+    return { success: false, error: errorMsg };
+  }
+
+  return { success: true };
+}

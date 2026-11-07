@@ -154,11 +154,11 @@ export const auth = betterAuth({
   plugins: [
     username({
       minUsernameLength: 3,
-      maxUsernameLength: 30,
+      maxUsernameLength: 8,
       immutableUsername: true,
 
       usernameValidator: (username) => {
-        return /^[a-zA-Z0-9_.]+$/.test(username);
+        return /^[a-zA-Z0-9_@]{3,8}$/.test(username);
       },
     }),
 

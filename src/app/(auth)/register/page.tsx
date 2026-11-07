@@ -1,11 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/auth-client";
-import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
+import { indianPhoneSchema, normalizeIndianPhone, usernameSchema } from "@/lib/validation/common";
+
+declare global {
+  interface Window {
+    initSendOTP?: (config: Record<string, unknown>) => void;
+    sendOtp?: (
+      identifier: string,
+      success?: (data: unknown) => void,
+      failure?: (error: unknown) => void
+    ) => void;
+    retryOtp?: (
+      channel: string | null,
+      success?: (data: unknown) => void,
+      failure?: (error: unknown) => void,
+      reqId?: string
+    ) => void;
+    verifyOtp?: (
+      otp: string,
+      success?: (data: unknown) => void,
+      failure?: (error: unknown) => void,
+      reqId?: string
+    ) => void;
+  }
+}
+
+function extractAccessToken(data: unknown): string | null {
+  if (typeof data === "string" && data.startsWith("ey")) return data;
+  if (data && typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    for (const key of ["token", "accessToken", "access-token", "message"]) {
+      if (typeof obj[key] === "string" && (obj[key] as string).startsWith("ey")) {
+        return obj[key] as string;
+      }
+    }
+  }
+  return null;
+}
 
 type RegistrationStep = "phone" | "otp" | "details";
 
@@ -14,32 +50,94 @@ export default function RegisterPage() {
   const [step, setStep] = useState<RegistrationStep>("phone");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
+  const [accessToken, setAccessToken] = useState("");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendCount, setResendCount] = useState(0);
   const [usernameAvailability, setUsernameAvailability] = useState("");
-  const [usernameAvailabilityState, setUsernameAvailabilityState] = useState<"idle" | "checking" | "available" | "taken" | "invalid" | "error">("idle");
+  const [usernameAvailabilityState, setUsernameAvailabilityState] = useState<
+    "idle" | "checking" | "available" | "taken" | "invalid" | "error"
+  >("idle");
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const widgetId = process.env.NEXT_PUBLIC_MSG91_WIDGET_ID || "366b67695879383238353332";
+    const tokenAuth = process.env.NEXT_PUBLIC_MSG91_TOKEN_AUTH || "";
+
+    const script = document.createElement("script");
+    script.src = "https://verify.msg91.com/otp-provider.js";
+    script.async = true;
+    script.onload = () => {
+      if (window.initSendOTP) {
+        window.initSendOTP({
+          widgetId,
+          tokenAuth,
+          exposeMethods: true,
+          success: (data: unknown) => {
+            const token = extractAccessToken(data);
+            if (token) {
+              setAccessToken(token);
+              setStep("details");
+              setMessage("Phone verified. Complete your account details.");
+            }
+          },
+          failure: (error: unknown) => {
+            console.error("MSG91 OTP failure:", error);
+          },
+        });
+      }
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
+
+  function startCooldown(seconds = 30) {
+    setResendCooldown(seconds);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
 
   useEffect(() => {
     if (step !== "details") return;
     const candidate = username.trim();
-    if (!/^[a-zA-Z0-9_.]{3,30}$/.test(candidate)) return;
+    if (!usernameSchema.safeParse(candidate).success) return;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setUsernameAvailability("Checking availability...");
       setUsernameAvailabilityState("checking");
       try {
-        const response = await fetch(`/api/account/username?username=${encodeURIComponent(candidate)}`, { signal: controller.signal });
+        const response = await fetch(
+          `/api/account/username?username=${encodeURIComponent(candidate)}`,
+          { signal: controller.signal }
+        );
         const result = await response.json();
         if (controller.signal.aborted) return;
-        setUsernameAvailability(result.message ?? (result.available ? "Username available." : "That username is already taken."));
+        setUsernameAvailability(
+          result.message ?? (result.available ? "Username available." : "That username is already taken.")
+        );
         setUsernameAvailabilityState(result.available ? "available" : "taken");
       } catch {
         if (!controller.signal.aborted) {
-          setUsernameAvailability("Could not check right now. The server will check when you create the account.");
+          setUsernameAvailability("Could not check right now. The server will check when you save.");
           setUsernameAvailabilityState("error");
         }
       }
@@ -61,7 +159,8 @@ export default function RegisterPage() {
     }
   }
 
-  async function sendOtp() {
+  async function sendOtp(event?: FormEvent) {
+    if (event) event.preventDefault();
     setLoading(true);
     setMessage("");
     const validation = indianPhoneSchema.safeParse(phoneNumber);
@@ -80,160 +179,387 @@ export default function RegisterPage() {
       });
       const result = await response.json();
       if (!response.ok) {
-        setMessage(result.message ?? "Could not send a verification code. Please try again.");
+        setMessage(result.message ?? "Could not prepare a verification code. Please try again.");
+        setLoading(false);
         return;
       }
       setPhoneNumber(normalizedPhone);
-      setOtp("");
-      setStep("otp");
-      setMessage(result.message ?? "Verification code sent.");
+
+      const digits = normalizedPhone.replace(/\D/g, "");
+      if (window.sendOtp) {
+        window.sendOtp(
+          digits.startsWith("91") ? digits : `91${digits}`,
+          () => {
+            setOtp("");
+            setStep("otp");
+            setMessage("4-digit verification code sent.");
+            setLoading(false);
+            startCooldown(30);
+          },
+          (error: unknown) => {
+            const errObj = error as { message?: string } | undefined;
+            setMessage(errObj?.message || "SMS delivery failed. Check the number and try again.");
+            setLoading(false);
+          }
+        );
+      } else {
+        setOtp("");
+        setStep("otp");
+        setMessage("Verification code sent.");
+        setLoading(false);
+        startCooldown(30);
+      }
     } catch {
       setMessage("Could not prepare a verification code. Please try again.");
-    } finally {
       setLoading(false);
     }
   }
 
-  async function verifyOtp() {
+  function verifyOtp(event?: FormEvent) {
+    if (event) event.preventDefault();
+    if (otp.length !== 4) {
+      setMessage("Enter the 4-digit verification code.");
+      return;
+    }
     setLoading(true);
     setMessage("");
-    try {
-      const result = await authClient.phoneNumber.verify({ phoneNumber, code: otp });
-      if (result.error) {
-        setMessage("That code is invalid or expired. Request a new code and try again.");
-        return;
-      }
-      setStep("details");
-      setMessage("Phone verified. Complete your account details.");
-    } catch {
-      setMessage("Could not verify that code. Please try again.");
-    } finally {
+
+    if (window.verifyOtp) {
+      window.verifyOtp(
+        otp,
+        (data: unknown) => {
+          const token = extractAccessToken(data);
+          if (token) {
+            setAccessToken(token);
+            setStep("details");
+            setMessage("Phone verified. Complete your account details.");
+          } else {
+            setMessage("Verification failed. Please request a new code.");
+          }
+          setLoading(false);
+        },
+        (error: unknown) => {
+          const errObj = error as { message?: string } | undefined;
+          setMessage(errObj?.message || "Invalid or expired code. Please try again.");
+          setLoading(false);
+        }
+      );
+    } else {
+      setMessage("Verification service is initializing. Please wait.");
       setLoading(false);
     }
   }
 
-  async function finishSignup() {
+  function resendOtp() {
+    if (resendCooldown > 0 || resendCount >= 2) return;
     setLoading(true);
     setMessage("");
-    let navigating = false;
+
+    if (window.retryOtp) {
+      window.retryOtp(
+        null,
+        () => {
+          setResendCount((prev) => prev + 1);
+          setOtp("");
+          setMessage("A new 4-digit code was sent.");
+          setLoading(false);
+          startCooldown(30);
+        },
+        (error: unknown) => {
+          const errObj = error as { message?: string } | undefined;
+          setMessage(errObj?.message || "Could not resend the code. Please try again later.");
+          setLoading(false);
+        }
+      );
+    } else {
+      setLoading(false);
+    }
+  }
+
+  async function finishSignup(event: FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setMessage("");
+
+    const parsedUsername = usernameSchema.safeParse(username.trim());
+    if (!parsedUsername.success) {
+      setMessage("Use 3–8 letters, numbers, underscores, or @.");
+      setLoading(false);
+      return;
+    }
+
+    if (password.length < 8 || password.length > 128) {
+      setMessage("Password must be between 8 and 128 characters.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch("/api/account/setup", {
+      const response = await fetch("/api/auth/register/phone", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, username, password }),
+        body: JSON.stringify({
+          phoneNumber,
+          accessToken,
+          name: name.trim(),
+          username: parsedUsername.data,
+          password,
+        }),
       });
+
       const result = await response.json();
       if (!response.ok) {
-        setMessage(result.message || "Could not create the account. Check the details and try again.");
+        setMessage(result.message || "Could not create the account. Check details and try again.");
+        setLoading(false);
         return;
       }
-      navigating = true;
-      router.push("/");
+
+      // Automatically sign in the user with credentials
+      await authClient.signIn.username(
+        {
+          username: parsedUsername.data,
+          password,
+          rememberMe: true,
+        },
+        {
+          onSuccess: () => {
+            router.push("/");
+            router.refresh();
+          },
+          onError: () => {
+            router.push("/login");
+          },
+        }
+      );
     } catch {
       setMessage("Could not create the account. Please try again.");
-    } finally {
-      if (!navigating) setLoading(false);
-    }
-  }
-
-  async function checkUsernameAvailability() {
-    const candidate = username.trim();
-    if (!candidate) {
-      setUsernameAvailability("");
-      return;
-    }
-    if (!/^[a-zA-Z0-9_.]{3,30}$/.test(candidate)) {
-      setUsernameAvailability("Use 3–30 letters, numbers, underscores, or periods.");
-      return;
-    }
-    setUsernameAvailability("Checking availability…");
-    try {
-      const response = await fetch(`/api/account/username?username=${encodeURIComponent(candidate)}`);
-      const result = await response.json();
-      setUsernameAvailability(result.message ?? (result.available ? "Username available." : "That username is already taken."));
-    } catch {
-      setUsernameAvailability("Could not check right now. We’ll still check when you create the account.");
+      setLoading(false);
     }
   }
 
   return (
     <main className="auth-page">
       <aside className="auth-aside">
-        <Link href="/" className="brand"><Image src="/img/revok-logo.png" width={52} height={52} alt="" className="brand-logo" /><span>REVOK</span></Link>
+        <Link href="/" className="brand">
+          <Image src="/img/revok-logo.png" width={52} height={52} alt="" className="brand-logo" />
+          <span>REVOK</span>
+        </Link>
         <div className="auth-aside-copy">
           <p className="eyebrow">A community lost and found</p>
           <h1>Start with a little trust.</h1>
-          <p>Phone verification helps prepare accounts for sensitive actions. Lost-and-found reporting is still being developed.</p>
+          <p>
+            Phone verification helps protect your account for community reporting and secure returns.
+          </p>
         </div>
-        <p className="auth-aside-note"><Link href="/">← Back to REVOK</Link></p>
+        <p className="auth-aside-note">
+          <Link href="/">← Back to REVOK</Link>
+        </p>
       </aside>
 
       <section className="auth-main" aria-labelledby="register-heading">
         <div className="auth-card">
           <p className="eyebrow">Create your account</p>
           <h2 id="register-heading">Join REVOK</h2>
-          <p className="auth-card-intro">A few steps, then you’re ready to continue.</p>
-          <button className="auth-google-button" type="button" onClick={signUpWithGoogle} disabled={loading || googleLoading}>
-            <span className="google-g" aria-hidden="true">G</span>{googleLoading ? "Opening Google…" : "Continue with Google"}
+          <p className="auth-card-intro">Choose how you’d like to get started.</p>
+
+          <button
+            className="auth-google-button"
+            type="button"
+            onClick={signUpWithGoogle}
+            disabled={loading || googleLoading}
+          >
+            <span className="google-g" aria-hidden="true">
+              G
+            </span>
+            {googleLoading ? "Opening Google…" : "Continue with Google"}
           </button>
+
           <div className="auth-divider">or sign up with phone</div>
-          <p className="auth-step" aria-live="polite"><strong>{step === "phone" ? "1" : step === "otp" ? "2" : "3"} of 3</strong> · {step === "phone" ? "Verify your phone" : step === "otp" ? "Enter your code" : "Account details"}</p>
+
+          <p className="auth-step" aria-live="polite">
+            <strong>{step === "phone" ? "1" : step === "otp" ? "2" : "3"} of 3</strong> ·{" "}
+            {step === "phone"
+              ? "Verify your phone"
+              : step === "otp"
+                ? "Enter your code"
+                : "Account details"}
+          </p>
 
           {step === "phone" && (
-            <div className="auth-form">
-              <label className="auth-field" htmlFor="register-phone">Phone number
-                <input id="register-phone" type="tel" inputMode="tel" autoComplete="tel" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} placeholder="98765 43210" required />
+            <form className="auth-form" onSubmit={sendOtp}>
+              <label className="auth-field" htmlFor="register-phone">
+                Phone number
+                <input
+                  id="register-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={phoneNumber}
+                  onChange={(event) => setPhoneNumber(event.target.value)}
+                  placeholder="98765 43210"
+                  required
+                />
               </label>
-              <p className="auth-help">We’ll send a six-digit verification code to this number.</p>
-              <button className="auth-submit" type="button" onClick={sendOtp} disabled={loading || !phoneNumber}>{loading ? "Sending code…" : "Send verification code"}</button>
-            </div>
+              <p className="auth-help">We’ll send a 4-digit verification code to this number.</p>
+              <button
+                className="auth-submit"
+                type="submit"
+                disabled={loading || !phoneNumber}
+              >
+                {loading ? "Sending code…" : "Send verification code"}
+              </button>
+            </form>
           )}
 
           {step === "otp" && (
-            <div className="auth-form">
-              <p className="auth-help">Enter the six-digit code sent to {phoneNumber}.</p>
-              <label className="auth-field" htmlFor="register-otp">Verification code
-                <input id="register-otp" type="text" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" maxLength={6} required />
+            <form className="auth-form" onSubmit={verifyOtp}>
+              <p className="auth-help">Enter the 4-digit code sent to {phoneNumber}.</p>
+              <label className="auth-field" htmlFor="register-otp">
+                Verification code
+                <input
+                  id="register-otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={otp}
+                  onChange={(event) =>
+                    setOtp(event.target.value.replace(/\D/g, "").slice(0, 4))
+                  }
+                  placeholder="0000"
+                  maxLength={4}
+                  required
+                />
               </label>
-              <button className="auth-submit" type="button" onClick={verifyOtp} disabled={loading || otp.length !== 6}>{loading ? "Verifying…" : "Verify phone"}</button>
-              <button className="button button-outline" type="button" onClick={sendOtp} disabled={loading}>{loading ? "Sending…" : "Resend code"}</button>
-              <button className="button button-outline" type="button" onClick={() => { setStep("phone"); setMessage(""); setOtp(""); }}>Change phone number</button>
-            </div>
+              <button
+                className="auth-submit"
+                type="submit"
+                disabled={loading || otp.length !== 4}
+              >
+                {loading ? "Verifying…" : "Verify phone"}
+              </button>
+              {resendCount < 2 ? (
+                <button
+                  className="button button-outline"
+                  type="button"
+                  onClick={resendOtp}
+                  disabled={loading || resendCooldown > 0}
+                >
+                  {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : "Resend code"}
+                </button>
+              ) : (
+                <p className="auth-help" style={{ color: "#8a4b4b" }}>
+                  Maximum resends reached. Please try again later.
+                </p>
+              )}
+              <button
+                className="button button-outline"
+                type="button"
+                onClick={() => {
+                  setStep("phone");
+                  setMessage("");
+                  setOtp("");
+                }}
+              >
+                Change phone number
+              </button>
+            </form>
           )}
 
           {step === "details" && (
-            <div className="auth-form">
-              <label className="auth-field" htmlFor="register-name">Name
-                <input id="register-name" type="text" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" required />
+            <form className="auth-form" onSubmit={finishSignup}>
+              <label className="auth-field" htmlFor="register-name">
+                Full name
+                <input
+                  id="register-name"
+                  type="text"
+                  autoComplete="name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Your name"
+                  minLength={2}
+                  maxLength={100}
+                  required
+                />
               </label>
-              <label className="auth-field" htmlFor="register-username">Username
-                <input id="register-username" type="text" autoComplete="username" minLength={3} maxLength={30} value={username} onChange={(event) => {
-                  const value = event.target.value;
-                  const candidate = value.trim();
-                  setUsername(value);
-                  if (!candidate) {
-                    setUsernameAvailability("");
-                    setUsernameAvailabilityState("idle");
-                  } else if (!/^[a-zA-Z0-9_.]{3,30}$/.test(candidate)) {
-                    setUsernameAvailability("Use 3-30 letters, numbers, underscores, or periods.");
-                    setUsernameAvailabilityState("invalid");
-                  } else {
-                    setUsernameAvailability("Checking availability...");
-                    setUsernameAvailabilityState("checking");
-                  }
-                }} onBlur={checkUsernameAvailability} placeholder="Choose a username" required />
+              <label className="auth-field" htmlFor="register-username">
+                Username
+                <input
+                  id="register-username"
+                  type="text"
+                  autoComplete="username"
+                  minLength={3}
+                  maxLength={8}
+                  value={username}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    const candidate = value.trim();
+                    setUsername(value);
+                    if (!candidate) {
+                      setUsernameAvailability("");
+                      setUsernameAvailabilityState("idle");
+                    } else if (!usernameSchema.safeParse(candidate).success) {
+                      setUsernameAvailability("Use 3–8 letters, numbers, underscores, or @.");
+                      setUsernameAvailabilityState("invalid");
+                    } else {
+                      setUsernameAvailability("Checking availability...");
+                      setUsernameAvailabilityState("checking");
+                    }
+                  }}
+                  placeholder="3-8 characters"
+                  required
+                />
               </label>
-              <p className="auth-help username-lock-note">Check that your username is available. You can’t change it after account creation.</p>
-              {usernameAvailability && <p className={`username-availability username-${usernameAvailabilityState}`} role="status">{usernameAvailability}</p>}
-              <label className="auth-field" htmlFor="register-password">Password
-                <input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" minLength={8} required />
+              <p className="auth-help username-lock-note">
+                Your username is permanent and cannot be changed after account creation.
+              </p>
+              {usernameAvailability && (
+                <p
+                  className={`username-availability username-${usernameAvailabilityState}`}
+                  role="status"
+                >
+                  {usernameAvailability}
+                </p>
+              )}
+              <label className="auth-field" htmlFor="register-password">
+                Password
+                <input
+                  id="register-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="At least 8 characters"
+                  minLength={8}
+                  maxLength={128}
+                  required
+                />
               </label>
-              <button className="auth-submit" type="button" onClick={finishSignup} disabled={loading || !name || !/^[a-zA-Z0-9_.]{3,30}$/.test(username.trim()) || password.length < 8 || usernameAvailabilityState === "checking" || usernameAvailabilityState === "taken"}>{loading ? "Creating account…" : "Create account"}</button>
-            </div>
+              <button
+                className="auth-submit"
+                type="submit"
+                disabled={
+                  loading ||
+                  !name.trim() ||
+                  !usernameSchema.safeParse(username.trim()).success ||
+                  password.length < 8 ||
+                  usernameAvailabilityState === "checking" ||
+                  usernameAvailabilityState === "taken"
+                }
+              >
+                {loading ? "Creating account…" : "Create account"}
+              </button>
+            </form>
           )}
 
-          {message && <p className="auth-message" role="status" aria-live="polite">{message}</p>}
-          <p className="auth-switch">Already registered? <Link href="/login">Log in</Link></p>
+          {message && (
+            <p className="auth-message" role="status" aria-live="polite">
+              {message}
+            </p>
+          )}
+
+          <p className="auth-switch">
+            Already registered? <Link href="/login">Log in</Link>
+          </p>
         </div>
       </section>
     </main>

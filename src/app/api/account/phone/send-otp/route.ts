@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   // Match the national-format value used by Better Auth's phone signup and login.
   const phoneNumber = normalizeIndianPhone(result.data.phoneNumber);
 
-  const cooldown = checkRateLimit(hashRateLimitKey("otp-send-cooldown", phoneNumber), 1, 60 * 1000);
+  const cooldown = checkRateLimit(hashRateLimitKey("otp-send-cooldown", phoneNumber), 1, 30 * 1000);
   if (!cooldown.allowed) return rateLimitResponse(cooldown.retryAfterMs);
 
   const phoneLimit = checkRateLimit(
@@ -92,18 +92,5 @@ export async function POST(request: Request) {
     );
   }
 
-  try {
-    await auth.api.sendPhoneNumberOTP({
-      body: {
-        phoneNumber,
-      },
-    });
-
-    return NextResponse.json({ success: true, message: "Verification code sent." });
-  } catch {
-    return NextResponse.json(
-      { error: "OTP_DELIVERY_FAILED", message: "The verification code could not be delivered. Check the SMS provider configuration and try again." },
-      { status: 500 },
-    );
-  }
+  return NextResponse.json({ success: true, message: "Phone validated." });
 }

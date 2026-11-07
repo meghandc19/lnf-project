@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth/auth";
+import { prisma } from "@/lib/prisma";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 
@@ -19,10 +19,19 @@ export async function POST(request: Request) {
   const limit = checkRateLimit(hashRateLimitKey("signup-send-otp-phone", phoneNumber), 3, 60 * 60 * 1000);
   if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
 
-  try {
-    await auth.api.sendPhoneNumberOTP({ body: { phoneNumber } });
-    return Response.json({ success: true, message: "Verification code sent." });
-  } catch {
-    return Response.json({ error: "OTP_DELIVERY_FAILED", message: "The verification code could not be sent. Check the number and try again later." }, { status: 503 });
+  const existing = await prisma.user.findFirst({
+    where: { phoneNumber },
+    select: { id: true },
+  });
+  if (existing) {
+    return Response.json(
+      {
+        error: "PHONE_ALREADY_REGISTERED",
+        message: "This phone number is already registered. Please log in instead.",
+      },
+      { status: 409 }
+    );
   }
+
+  return Response.json({ success: true, message: "Phone validated." });
 }

@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { z } from "zod";
 
-import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/prisma";
 import { requireActiveUser } from "@/lib/auth/guards";
 import { handleApiError } from "@/lib/api/handle-error";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
+import { verifyWidgetAccessToken } from "@/lib/auth/sms";
 import {
   checkRateLimit,
   hashRateLimitKey,
@@ -15,16 +14,10 @@ import {
 
 const verifySchema = z.object({
   phoneNumber: indianPhoneSchema,
-
-  code: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, "OTP must be 6 digits."),
+  accessToken: z.string().trim().min(1, "Access token is required."),
 });
 
 export async function POST(request: Request) {
-  const requestHeaders = await headers();
-
   let user;
   try {
     user = await requireActiveUser();
@@ -49,14 +42,16 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: "INVALID_VERIFICATION_REQUEST",
-        message: "Enter a valid 10-digit Indian number and the six-digit OTP.",
+        message: "Enter a valid Indian mobile number and verification token.",
       },
       { status: 400 },
     );
   }
 
+  const normalizedPhone = normalizeIndianPhone(result.data.phoneNumber);
+
   const phoneLimit = checkRateLimit(
-    hashRateLimitKey("account-verify-otp-phone", normalizeIndianPhone(result.data.phoneNumber)),
+    hashRateLimitKey("account-verify-otp-phone", normalizedPhone),
     5,
     15 * 60 * 1000,
   );
@@ -70,45 +65,72 @@ export async function POST(request: Request) {
   if (!userLimit.allowed) return rateLimitResponse(userLimit.retryAfterMs);
 
   try {
-    const phoneNumber = normalizeIndianPhone(result.data.phoneNumber);
-    const linkedAccount = await prisma.user.findFirst({
-      where: {
-        phoneNumber: { in: [phoneNumber, `+91${phoneNumber}`] },
-        id: { not: user.id },
-      },
-      select: { id: true },
+    const tokenHash = hashRateLimitKey("msg91-token", result.data.accessToken);
+    const alreadyUsed = await prisma.rateLimit.findUnique({
+      where: { key: `msg91-token:${tokenHash}` },
     });
-    if (linkedAccount) {
+    if (alreadyUsed) {
       return NextResponse.json(
         {
-          error: "PHONE_NUMBER_IN_USE",
-          message: "This number is already linked to another REVOK account. Sign in to that existing account with its phone and password, or use the Google account already connected to it. A phone number can’t be linked to two accounts.",
+          error: "TOKEN_ALREADY_USED",
+          message: "This verification token has already been consumed. Please request a new code.",
         },
-        { status: 409 },
+        { status: 400 },
       );
     }
 
-    await auth.api.verifyPhoneNumber({
-      headers: requestHeaders,
+    const verification = await verifyWidgetAccessToken(result.data.accessToken);
+    if (!verification.success || !verification.mobile) {
+      return NextResponse.json(
+        {
+          error: "INVALID_OR_EXPIRED_TOKEN",
+          message: verification.error ?? "Invalid or expired verification token. Please try again.",
+        },
+        { status: 400 },
+      );
+    }
 
-      body: {
-        phoneNumber,
-        code: result.data.code,
-        updatePhoneNumber: true,
-        disableSession: false,
-      },
-    });
+    const tokenDigits = verification.mobile.replace(/\D/g, "");
+    const expectedDigits = normalizedPhone.replace(/\D/g, "");
+    if (!tokenDigits.endsWith(expectedDigits.slice(-10))) {
+      return NextResponse.json(
+        {
+          error: "PHONE_MISMATCH",
+          message: "The verified number does not match your submitted phone number.",
+        },
+        { status: 400 },
+      );
+    }
 
-    await prisma.user.update({
-      where: {
-        id: user.id,
-      },
+    await prisma.$transaction(async (tx) => {
+      const linkedAccount = await tx.user.findFirst({
+        where: {
+          phoneNumber: { in: [normalizedPhone, `+91${normalizedPhone}`] },
+          id: { not: user.id },
+        },
+        select: { id: true },
+      });
 
-      data: {
-        phoneNumber,
-        phoneNumberVerified: true,
-        phoneVerifiedAt: new Date(),
-      },
+      if (linkedAccount) {
+        throw new Error("PHONE_NUMBER_IN_USE");
+      }
+
+      await tx.rateLimit.create({
+        data: {
+          key: `msg91-token:${tokenHash}`,
+          count: 1,
+          lastRequest: BigInt(Date.now()),
+        },
+      });
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          phoneNumber: normalizedPhone,
+          phoneNumberVerified: true,
+          phoneVerifiedAt: new Date(),
+        },
+      });
     });
 
     return NextResponse.json({
@@ -116,16 +138,44 @@ export async function POST(request: Request) {
       message: "Phone number verified successfully.",
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "The SMS verification service is temporarily unavailable.") {
-      return NextResponse.json({ error: "OTP_PROVIDER_UNAVAILABLE", message: "Phone verification is temporarily unavailable. Please try again shortly." }, { status: 503 });
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      const target = (error as { meta?: { target?: string[] | string } }).meta?.target;
+      const isTokenCollision = Array.isArray(target) ? target.includes("key") : target === "key";
+      if (isTokenCollision) {
+        return NextResponse.json(
+          {
+            error: "TOKEN_ALREADY_USED",
+            message: "This verification token has already been consumed. Please request a new code.",
+          },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json(
+        {
+          error: "PHONE_NUMBER_IN_USE",
+          message: "This number is already linked to another REVOK account.",
+        },
+        { status: 409 },
+      );
     }
 
-    return NextResponse.json(
-      {
-        error: "INVALID_OR_EXPIRED_OTP",
-        message: "Invalid or expired OTP. Please request a new code and enter the same phone number used to receive it.",
-      },
-      { status: 400 },
-    );
+    if (error instanceof Error && error.message === "PHONE_NUMBER_IN_USE") {
+      return NextResponse.json(
+        {
+          error: "PHONE_NUMBER_IN_USE",
+          message: "This number is already linked to another REVOK account.",
+        },
+        { status: 409 },
+      );
+    }
+
+    if (error instanceof Error && error.message.includes("unavailable")) {
+      return NextResponse.json(
+        { error: "OTP_PROVIDER_UNAVAILABLE", message: "Phone verification is temporarily unavailable. Please try again shortly." },
+        { status: 503 },
+      );
+    }
+
+    return handleApiError(error);
   }
 }

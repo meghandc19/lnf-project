@@ -4,9 +4,10 @@ export const idSchema = z.string().min(1);
 
 export const usernameSchema = z
   .string()
-  .min(3)
-  .max(30)
-  .regex(/^[a-zA-Z0-9_.]+$/);
+  .trim()
+  .min(3, "Username must be at least 3 characters.")
+  .max(8, "Username must be 8 characters or fewer.")
+  .regex(/^[a-zA-Z0-9_@]+$/, "Only letters, numbers, _ and @ are allowed.");
 
 export const indianPhoneSchema = z
   .string()

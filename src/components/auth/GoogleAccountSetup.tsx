@@ -54,7 +54,7 @@ export default function GoogleAccountSetup({
     event.preventDefault();
     const parsed = usernameSchema.safeParse(username.trim());
     if (!parsed.success) {
-      setAvailability("Use 3-30 letters, numbers, underscores, or periods.");
+      setAvailability("Use 3–8 letters, numbers, underscores, or @.");
       setAvailabilityState("invalid");
       return;
     }
@@ -92,7 +92,7 @@ export default function GoogleAccountSetup({
       setAvailability("");
       setAvailabilityState("idle");
     } else if (!usernameSchema.safeParse(candidate).success) {
-      setAvailability("Use 3-30 letters, numbers, underscores, or periods.");
+      setAvailability("Use 3–8 letters, numbers, underscores, or @.");
       setAvailabilityState("invalid");
     } else {
       setAvailability("Checking availability...");
@@ -105,7 +105,7 @@ export default function GoogleAccountSetup({
       <form className="auth-form" onSubmit={saveUsername}>
         <p className="auth-step"><strong>Step 1 of 2</strong> · Choose a username</p>
         <label className="auth-field" htmlFor="google-signup-username">Username
-          <input id="google-signup-username" type="text" autoComplete="username" minLength={3} maxLength={30} value={username} onChange={(event) => updateUsername(event.target.value)} placeholder="Choose a username" required />
+          <input id="google-signup-username" type="text" autoComplete="username" minLength={3} maxLength={8} value={username} onChange={(event) => updateUsername(event.target.value)} placeholder="Choose a username" required />
         </label>
         <p className="auth-help">Your username is permanent after you save it.</p>
         {availability && <p className={`username-availability username-${availabilityState}`} role="status">{availability}</p>}

@@ -24,8 +24,12 @@ export default function Home() {
               <p className="home-hero-description">A little kindness can turn a lost moment into a found connection.</p>
               <div className="home-hero-actions">
                 <Link href="/report/lost" className="button button-primary button-large home-hero-action"><ActionIcon name="lost" /><span>Report lost</span></Link>
-                <Link href="/report/found" className="button button-light button-large home-hero-action"><ActionIcon name="found" /><span>Report found</span></Link>
-                <Link href="/items" className="button button-light button-large home-hero-action"><ActionIcon name="search" /><span>Search Items</span></Link>
+                <Link href="/report/found" className="button button-primary button-large home-hero-action"><ActionIcon name="found" /><span>Report found</span></Link>
+                <Link href="/items" className="button button-primary button-large home-hero-action"><ActionIcon name="search" /><span>Search Items</span></Link>
+              </div>
+              <div className="home-hero-auth-boxes">
+                <Link href="/login" className="home-hero-auth-box">Log in</Link>
+                <Link href="/register" className="home-hero-auth-box">Create Account</Link>
               </div>
               <p className="home-hero-note">Every lost thing deserves a way back.</p>
             </div>

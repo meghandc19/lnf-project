@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const limit = checkRateLimit(hashRateLimitKey("username-availability", user.id), 40, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
     const parsed = usernameSchema.safeParse(new URL(request.url).searchParams.get("username")?.trim());
-    if (!parsed.success) return Response.json({ available: false, message: "Use 3–30 letters, numbers, underscores, or periods." }, { status: 400 });
+    if (!parsed.success) return Response.json({ available: false, message: "Use 3–8 letters, numbers, underscores, or @." }, { status: 400 });
     if (user.username) return Response.json({ available: false, locked: true, message: "Your username has already been set and cannot be changed." });
     const existing = await checkAvailability(parsed.data.toLowerCase());
     return Response.json({ available: !existing });
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     const parsedBody = await request.json().catch(() => null);
     const parsed = bodySchema.safeParse(parsedBody);
-    if (!parsed.success) return Response.json({ error: "INVALID_USERNAME", message: "Use 3–30 letters, numbers, underscores, or periods." }, { status: 400 });
+    if (!parsed.success) return Response.json({ error: "INVALID_USERNAME", message: "Use 3–8 letters, numbers, underscores, or @." }, { status: 400 });
 
     const username = parsed.data.username.toLowerCase();
     const existing = await checkAvailability(username);

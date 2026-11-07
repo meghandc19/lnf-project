@@ -1389,6 +1389,9 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
 .home-hero-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .home-hero-action { min-width: 0; min-height: 68px; padding-inline: 14px; border-radius: 18px; font-size: 16px; white-space: nowrap; }
 .home-hero-action svg { flex: 0 0 25px; width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.home-hero-auth-boxes { display: flex; align-items: center; gap: 10px; margin: 18px 0 0; }
+.home-hero-auth-box { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 6px 16px; border-radius: 11px; border: 1.5px solid #bdd7c8; background: #ffffff; color: #087c48; font-size: 13.5px; font-weight: 700; text-decoration: none; box-shadow: 0 2px 6px rgba(8, 124, 72, 0.05); transition: all .15s ease; }
+.home-hero-auth-box:hover { background: #f0f7f3; border-color: #087c48; color: #054c2a; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(8, 124, 72, 0.1); }
 .home-hero-note { margin: 24px 0 0; color: #4f6259; font-size: 15px; font-weight: 700; }
 .home-illustration { position: relative; z-index: 0; width: 100%; max-width: 620px; margin-inline: auto; }
 .home-illustration svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -1420,6 +1423,8 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
   .home-hero-action { min-height: 56px; gap: 8px; padding-inline: 9px; border-radius: 15px; font-size: 14px; white-space: normal; }
   .home-hero-action svg { flex-basis: 21px; width: 21px; height: 21px; }
   .home-hero-action:nth-child(3) { grid-column: 1 / -1; }
+  .home-hero-auth-boxes { margin-top: 13px; gap: 8px; }
+  .home-hero-auth-box { min-height: 35px; padding: 5px 13px; font-size: 13px; border-radius: 10px; }
   .home-hero-note { margin-top: 14px; font-size: 13px; }
   .home-illustration { width: min(100%, 350px); margin-top: -4px; }
   .home-hero-wave { height: 40px; }
