@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import ClaimStatusBadge from "@/components/claims/ClaimStatusBadge";
+import styles from "./ClaimConversation.module.css";
 
 type Message = { id: string; content: string; senderId: string; createdAt: string; sender: { name: string; username: string | null } };
 type Conversation = { id: string; status: string; viewerRole: "CLAIMANT" | "FINDER" | "CUSTODIAN" | "ADMIN"; item: { title: string; location: string; custodyStatus: string | null; custodian: { name: string; username: string | null } | null; images: { url: string }[] }; other: { name: string; username: string | null; image: string | null } | null };
@@ -64,9 +65,9 @@ export default function ClaimConversation({ claimId, viewerId }: { claimId: stri
     catch (reason) { setError(reason instanceof Error ? reason.message : "Report could not be withdrawn."); }
     finally { setBusy(false); }
   }
-  if (!claim) return <main className="claim-conversation-page"><p>{error || "Loading conversation…"}</p></main>;
+  if (!claim) return <main className={`claim-conversation-page ${styles.conversation}`}><p>{error || "Loading conversation…"}</p></main>;
   const closed = ["CANCELLED", "REJECTED", "RECOVERED"].includes(claim.status);
-  return <main className="claim-conversation-page">
+  return <main className={`claim-conversation-page ${styles.conversation}`}>
     <header className="claim-conversation-header"><Link href="/dashboard/claims" className="button button-outline">← Claim requests</Link>{claim.item.images[0] && <Image className="claim-item-thumbnail" src={claim.item.images[0].url} width={88} height={88} unoptimized alt="" />}<div><p className="eyebrow">Claim {claim.id.slice(-8).toUpperCase()}</p><h1>{claim.item.title}</h1><p>{claim.other?.name}{claim.other?.username ? ` · @${claim.other.username}` : ""}</p><ClaimStatusBadge status={claim.status} custodyStatus={claim.item.custodyStatus} /><p>Current custody: {claim.item.custodyStatus === "WITH_STEWARD" ? `With REVOK Steward ${claim.item.custodian?.name ?? ""}${claim.item.custodian?.username ? ` · @${claim.item.custodian.username}` : ""}` : claim.item.custodyStatus === "HANDOVER_PENDING" ? "Handover requested" : claim.item.custodyStatus === "WITH_FINDER" ? "With the finder" : claim.item.custodyStatus ?? "Not specified"}</p></div></header>
     {recoveryCode && <section className="recovery-code-panel"><h2>Your one-time recovery code</h2><p>Share this with the finder only after you have physically received your item. Save it now; for security, it is shown only once.</p><strong>{recoveryCode}</strong><button className="button button-outline" onClick={() => void navigator.clipboard.writeText(recoveryCode)}>Copy code</button></section>}
     {claim.status === "APPROVED" && <p className="notice-card">Claim approved. The claimant should give the recovery code to the finder only after receiving the item.</p>}

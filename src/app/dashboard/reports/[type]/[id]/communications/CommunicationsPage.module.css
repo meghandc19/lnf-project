@@ -1,0 +1,24 @@
+.communicationsPage {
+  width: min(920px, calc(100% - 48px));
+}
+
+.communicationsPage :global(.page-intro) {
+  max-width: 70ch;
+}
+
+.communicationsPage :global(.report-communication-actions),
+.communicationsPage :global(.report-message-form),
+.communicationsPage :global(.private-message-thread) {
+  min-width: 0;
+}
+
+.communicationsPage :global(.private-message) {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .communicationsPage {
+    width: calc(100% - 24px);
+    padding-top: 22px;
+  }
+}

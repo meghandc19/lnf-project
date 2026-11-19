@@ -6,16 +6,16 @@ import {
 
 export const usernamePasswordSchema = z.object({
   username: usernameSchema,
-  password: z.string().min(8).max(128),
+  password: z.string().min(4).max(8),
 });
 
 export const phonePasswordSchema = z.object({
   phoneNumber: indianPhoneSchema,
-  password: z.string().min(8).max(128),
+  password: z.string().min(4).max(8),
 });
 
 export const setupCredentialsSchema = z.object({
   name: z.string().trim().min(2).max(100),
   username: usernameSchema,
-  password: z.string().min(8).max(128),
+  password: z.string().min(4).max(8),
 });

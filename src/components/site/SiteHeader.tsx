@@ -4,6 +4,7 @@ import AccountMenu from "@/components/site/AccountMenu";
 import ResponsiveNav from "@/components/site/ResponsiveNav";
 import NotificationBell from "@/components/site/NotificationBell";
 import { requireCanBrowse } from "@/lib/auth/guards";
+import styles from "./ResponsiveNav.module.css";
 
 export default async function SiteHeader({ home = false }: { home?: boolean }) {
   let user = null;
@@ -15,25 +16,27 @@ export default async function SiteHeader({ home = false }: { home?: boolean }) {
 
   return (
     <header className={`site-header${home ? " site-header-home" : ""}`}>
-      <div className="header-inner">
+      <div className={`header-inner ${styles.headerInner}`}>
         <Link href="/" className="brand" aria-label="REVOK home">
           <Image src="/img/revok-logo.png" width={68} height={68} alt="" priority className="brand-logo" />
           <span>REVOK</span>
         </Link>
-        <ResponsiveNav authenticated={Boolean(user)} />
-        <div className="header-actions">
-          {user ? (
-            <>
-              <Link href="/dashboard" className="header-dashboard">Dashboard</Link>
-              <NotificationBell />
-              <AccountMenu name={user.name} username={user.username} phoneNumber={user.phoneNumber} image={user.image} />
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="button button-quiet">Log in</Link>
-              <Link href="/register" className="button button-small button-primary">Create account</Link>
-            </>
-          )}
+        <div className={`header-controls ${styles.headerControls}`}>
+          <ResponsiveNav authenticated={Boolean(user)} />
+          <div className="header-actions">
+            {user ? (
+              <>
+                <Link href="/dashboard" className="header-dashboard">Dashboard</Link>
+                <NotificationBell />
+                <AccountMenu name={user.name} username={user.username} phoneNumber={user.phoneNumber} image={user.image} />
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="button button-quiet">Log in</Link>
+                <Link href="/register" className="button button-small button-primary">Create account</Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>

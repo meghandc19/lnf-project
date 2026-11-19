@@ -5,7 +5,7 @@ export type OtpDeliveryInput = {
 
 const MSG91_SEND_URL = "https://control.msg91.com/api/v5/otp";
 const MSG91_VERIFY_URL = "https://control.msg91.com/api/v5/otp/verify";
-const DEFAULT_OTP_LENGTH = 6;
+const DEFAULT_OTP_LENGTH = 4;
 const DEFAULT_OTP_EXPIRY_MINUTES = 5;
 
 export function getOtpProviderConfig() {
@@ -16,7 +16,7 @@ export function getOtpProviderConfig() {
   const otpLength = Number.isInteger(rawOtpLength) ? rawOtpLength : DEFAULT_OTP_LENGTH;
   const otpExpiryMinutes = Number.isInteger(rawOtpExpiryMinutes) && rawOtpExpiryMinutes >= 1 && rawOtpExpiryMinutes <= 10080 ? rawOtpExpiryMinutes : DEFAULT_OTP_EXPIRY_MINUTES;
   const enabled = process.env.MSG91_ENABLED === "true";
-  const valid = Boolean(authKey && templateId && rawOtpLength === 6 && rawOtpExpiryMinutes === otpExpiryMinutes);
+  const valid = Boolean(authKey && templateId && (rawOtpLength === 4 || rawOtpLength === 6) && rawOtpExpiryMinutes === otpExpiryMinutes);
   return { configured: valid, enabled: enabled && valid, otpLength, otpExpiryMinutes };
 }
 
@@ -113,7 +113,10 @@ export async function verifyWidgetAccessToken(accessToken: string): Promise<{
         "content-type": "application/json",
         accept: "application/json",
       },
-      body: JSON.stringify({ "access-token": accessToken.trim() }),
+      body: JSON.stringify({
+        authkey: authKey,
+        "access-token": accessToken.trim(),
+      }),
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
     });
@@ -199,6 +202,7 @@ export async function sendWidgetOtpServer(params: {
         accept: "application/json",
       },
       body: JSON.stringify({
+        authkey: authKey,
         widgetId,
         identifier,
       }),
@@ -262,7 +266,7 @@ export async function verifyWidgetOtpServer(params: {
 
   const widgetId = params.widgetId || getMsg91WidgetId();
   const trimmedOtp = params.otp.trim();
-  if (!/^\d{4,6}$/.test(trimmedOtp)) {
+  if (!/^\d{4}$/.test(trimmedOtp)) {
     return { success: false, error: "Invalid verification code format." };
   }
   if (!params.reqId || typeof params.reqId !== "string" || params.reqId.trim().length === 0) {
@@ -279,6 +283,7 @@ export async function verifyWidgetOtpServer(params: {
         accept: "application/json",
       },
       body: JSON.stringify({
+        authkey: authKey,
         widgetId,
         reqId: params.reqId.trim(),
         otp: trimmedOtp,
@@ -342,6 +347,7 @@ export async function retryWidgetOtpServer(params: {
         accept: "application/json",
       },
       body: JSON.stringify({
+        authkey: authKey,
         widgetId,
         reqId: params.reqId.trim(),
         ...(params.channel ? { retryChannel: params.channel } : {}),

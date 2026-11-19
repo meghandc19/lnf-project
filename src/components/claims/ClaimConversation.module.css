@@ -1,0 +1,49 @@
+.conversation {
+  min-width: 0;
+}
+
+.conversation :global(.claim-chat) {
+  box-shadow: 0 10px 32px rgb(16 52 34 / 5%);
+}
+
+.conversation :global(.claim-chat-messages) {
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+
+.conversation :global(.claim-chat-message) {
+  overflow-wrap: anywhere;
+}
+
+.conversation :global(.claim-chat-compose textarea) {
+  min-width: 0;
+  max-height: 30vh;
+}
+
+.conversation :global(.claim-action-panel .button-row) {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .conversation :global(.claim-chat-messages) {
+    min-height: 42svh;
+    max-height: 54svh;
+  }
+
+  .conversation :global(.claim-chat-compose) {
+    align-items: stretch;
+  }
+
+  .conversation :global(.claim-chat-compose .button) {
+    min-width: 76px;
+  }
+
+  .conversation :global(.claim-action-panel .button-row) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .conversation :global(.recovery-verify-form) {
+    grid-column: 1 / -1;
+  }
+}

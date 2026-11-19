@@ -2,6 +2,7 @@ import { getAuthenticatedUser, requirePhoneVerified } from "@/lib/auth/guards";
 import { handleApiError } from "@/lib/api/handle-error";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { editReportSchema, reportOwnerWhere } from "@/lib/items/report-validation";
 import { ITEM_CATEGORIES } from "@/lib/items/categories";
 
@@ -31,7 +32,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (request.headers.get("origin") !== new URL(request.url).origin) return Response.json({ message: "This request is not allowed." }, { status: 403 });
+    if (!isSameOriginRequest(request)) return Response.json({ message: "This request is not allowed." }, { status: 403 });
     const user = await requirePhoneVerified();
     const limit = checkRateLimit(hashRateLimitKey("item-mutation", user.id), 30, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
@@ -65,7 +66,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (request.headers.get("origin") !== new URL(request.url).origin) return Response.json({ message: "This request is not allowed." }, { status: 403 });
+    if (!isSameOriginRequest(request)) return Response.json({ message: "This request is not allowed." }, { status: 403 });
     const user = await requirePhoneVerified();
     const limit = checkRateLimit(hashRateLimitKey("item-mutation", user.id), 30, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);

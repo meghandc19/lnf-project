@@ -5,6 +5,7 @@ import SiteHeader from "@/components/site/SiteHeader";
 import ReportCommunications from "@/components/reports/ReportCommunications";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import styles from "./CommunicationsPage.module.css";
 
 export default async function ReportCommunicationsPage({ params, searchParams }: { params: Promise<{ type: string; id: string }>; searchParams?: Promise<{ thread?: string }> }) {
   const user = await getAuthenticatedUser();
@@ -28,7 +29,7 @@ export default async function ReportCommunicationsPage({ params, searchParams }:
     const ownThread = await prisma.reportMessage.findFirst({ where: { id: threadId, parentMessageId: null, senderId: user.id, ...(kind === "lost" ? { lostItemId: id } : { foundItemId: id }) }, select: { id: true } });
     if (!ownThread) notFound();
   }
-  return <div className="site-page"><SiteHeader /><main className="subpage-main page-width report-communications-page">
+  return <div className="site-page"><SiteHeader /><main className={`subpage-main page-width report-communications-page ${styles.communicationsPage}`}>
     <Link href={`/dashboard?view=${kind}`} className="button button-outline">Back to reports</Link>
     <p className="eyebrow">Private {kind === "lost" ? "lost" : "found"} report hints</p><h1 className="page-title">{report.title}</h1>
     <p className="page-intro">Hints stay private to this report conversation and do not create or decide a claim.</p>

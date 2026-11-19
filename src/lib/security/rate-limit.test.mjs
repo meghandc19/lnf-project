@@ -25,7 +25,7 @@ test("MSG91 remains disabled until explicitly enabled and fully configured", () 
   delete process.env.MSG91_ENABLED;
   delete process.env.MSG91_AUTH_KEY;
   delete process.env.MSG91_OTP_TEMPLATE_ID;
-  assert.deepEqual(getOtpProviderConfig(), { configured: false, enabled: false, otpLength: 6, otpExpiryMinutes: 5 });
+  assert.deepEqual(getOtpProviderConfig(), { configured: false, enabled: false, otpLength: 4, otpExpiryMinutes: 5 });
   Object.entries(previous).forEach(([key, value]) => value === undefined ? delete process.env[key] : process.env[key] = value);
 });
 

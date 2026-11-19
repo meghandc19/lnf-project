@@ -7,6 +7,7 @@ import SiteFooter from "@/components/site/SiteFooter";
 import ItemReviewControls from "@/components/admin/ItemReviewControls";
 import ReportSubmitterControls from "@/components/admin/ReportSubmitterControls";
 import AdminReportList from "@/components/admin/AdminReportList";
+import styles from "../AdminPages.module.css";
 
 const submitterSelection = { id: true, name: true, username: true, image: true, phoneNumber: true, role: true, status: true, emailVerified: true, phoneNumberVerified: true } as const;
 
@@ -23,7 +24,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams?
   ]);
   const reports = [...lost.map((report) => ({ ...report, type: "LOST" as const, occurredAt: report.lostAt })), ...found.map((report) => ({ ...report, type: "FOUND" as const, occurredAt: report.foundAt }))].sort((a, b) => mode === "pending" ? a.createdAt.getTime() - b.createdAt.getTime() : b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 500);
   const selectedReports = typeFilter === "LOST" ? lost.map(({ lostAt, ...report }) => ({ ...report, occurredAt: lostAt })) : found.map(({ foundAt, ...report }) => ({ ...report, occurredAt: foundAt }));
-  return <div className="site-page"><SiteHeader /><main className="subpage-main page-width admin-report-queue-page">
+  return <div className="site-page"><SiteHeader /><main className={`subpage-main page-width admin-report-queue-page ${styles.adminPage}`}>
     <Link className="button button-outline" href="/admin">← Admin overview</Link>
     <p className="eyebrow">Server-protected item management</p>
     <h1 className="page-title">{mode === "pending" ? "Item reports to review" : "All item reports"}{typeFilter !== "ALL" ? ` · ${typeFilter === "LOST" ? "Lost" : "Found"}` : ""}</h1>

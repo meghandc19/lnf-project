@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 import { sendWidgetOtpServer } from "@/lib/auth/sms";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { handleApiError } from "@/lib/api/handle-error";
 
 async function rollbackReservation(params: {
@@ -48,8 +49,7 @@ async function rollbackReservation(params: {
 
 export async function POST(request: Request) {
   try {
-    const origin = request.headers.get("origin");
-    if (origin && origin !== new URL(request.url).origin) {
+    if (!isSameOriginRequest(request)) {
       return Response.json(
         { error: "ORIGIN_NOT_ALLOWED", message: "This password reset request is not allowed." },
         { status: 403 }

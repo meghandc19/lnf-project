@@ -2,6 +2,7 @@ import { requireActiveUser } from "@/lib/auth/guards";
 import { handleApiError } from "@/lib/api/handle-error";
 import { prisma } from "@/lib/prisma";
 import { isSafeProfileImage, profileSchema } from "@/lib/profile/validation";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 import {
   checkRateLimit,
   hashRateLimitKey,
@@ -10,8 +11,7 @@ import {
 
 export async function PATCH(request: Request) {
   try {
-    const requestOrigin = new URL(request.url).origin;
-    if (request.headers.get("origin") !== requestOrigin) {
+    if (!isSameOriginRequest(request)) {
       return Response.json({ ok: false, message: "This profile request is not allowed." }, { status: 403 });
     }
 

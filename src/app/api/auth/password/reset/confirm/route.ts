@@ -4,19 +4,19 @@ import { verifyWidgetOtpServer } from "@/lib/auth/sms";
 import { hashPassword } from "better-auth/crypto";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { handleApiError } from "@/lib/api/handle-error";
 
 const resetPasswordConfirmSchema = z.object({
   phoneNumber: indianPhoneSchema,
   resetToken: z.string().min(16),
   otp: z.string().regex(/^\d{4}$/, "Enter a valid 4-digit code."),
-  newPassword: z.string().min(8).max(128),
+  newPassword: z.string().min(4).max(8),
 });
 
 export async function POST(request: Request) {
   try {
-    const origin = request.headers.get("origin");
-    if (origin && origin !== new URL(request.url).origin) {
+    if (!isSameOriginRequest(request)) {
       return Response.json(
         { error: "ORIGIN_NOT_ALLOWED", message: "This password reset request is not allowed." },
         { status: 403 }

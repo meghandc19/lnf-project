@@ -1,0 +1,74 @@
+.adminPage {
+  min-width: 0;
+}
+
+.adminPage :global(.admin-metrics) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 12px;
+}
+
+.adminPage :global(.admin-metric-link) {
+  min-width: 0;
+}
+
+.adminPage :global(.admin-report-search) {
+  max-width: 740px;
+}
+
+.adminPage :global(.admin-lost-report-summary) {
+  min-width: 0;
+}
+
+.adminPage :global(.admin-lost-report-details) {
+  min-width: 0;
+}
+
+.adminPage :global(.admin-review-images img) {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.adminPage :global(.admin-content-panel),
+.adminPage :global(.admin-review-card) {
+  min-width: 0;
+}
+
+@media (max-width: 700px) {
+  .adminPage :global(.admin-heading-actions) {
+    flex-wrap: wrap;
+  }
+
+  .adminPage :global(.admin-tools-nav) {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding: 2px 0 7px;
+    scrollbar-width: thin;
+  }
+
+  .adminPage :global(.admin-tools-nav a) {
+    flex: 0 0 auto;
+  }
+
+  .adminPage :global(.admin-lost-report-summary) {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .adminPage :global(.admin-lost-report-main),
+  .adminPage :global(.admin-lost-report-submitter),
+  .adminPage :global(.admin-lost-report-open) {
+    grid-column: 2;
+  }
+
+  .adminPage :global(.admin-lost-report-image) {
+    grid-row: 1 / span 3;
+  }
+
+  .adminPage :global(.admin-lost-report-open) {
+    grid-row: auto;
+  }
+
+  .adminPage :global(.admin-user-actions .button) {
+    min-height: 40px;
+  }
+}

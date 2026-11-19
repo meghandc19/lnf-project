@@ -9,6 +9,7 @@ import LogoutButton from "@/components/auth/LogoutButton";
 import StewardDashboard from "@/components/claims/HandoverControls";
 import { HandoverButton } from "@/components/claims/HandoverControls";
 import { ReportActions } from "@/components/reports/ReportManagement";
+import styles from "./AccountPages.module.css";
 
 export default async function DashboardPage({ searchParams }: { searchParams?: Promise<{ view?: string }> }) {
   let user;
@@ -43,7 +44,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   };
   const claimCount = sentClaims + receivedClaims;
 
-  return <div className="site-page"><SiteHeader /><main className="dashboard-main page-width">
+  return <div className="site-page"><SiteHeader /><main className={`dashboard-main page-width ${styles.dashboardPage}`}>
     <section className="dashboard-user-header" aria-label="Your account details">
       {user.image ? <Image className="dashboard-user-avatar" src={user.image} width={58} height={58} alt="" unoptimized referrerPolicy="no-referrer" /> : <span className="dashboard-user-avatar dashboard-user-avatar-placeholder" aria-hidden="true">{user.name.slice(0, 1).toUpperCase()}</span>}
       <div className="dashboard-user-copy"><p className="eyebrow">Your REVOK space</p><h1>{user.name}</h1><span>{user.username ? `@${user.username}` : "Username not set"}</span><span>{user.phoneNumber || "Phone number not added"}{user.phoneNumberVerified ? " · Verified" : ""}</span></div>

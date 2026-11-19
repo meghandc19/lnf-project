@@ -10,6 +10,7 @@ import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { canClaim } from "@/lib/auth/access";
 import { prisma } from "@/lib/prisma";
 import { normalizeSearchText, scorePossibleMatch } from "@/lib/items/matching";
+import styles from "./ItemDetailPage.module.css";
 
 export default async function ItemDetailsPage({ params }: { params: Promise<{ type: string; id: string }> }) {
   const { type: rawType, id } = await params;
@@ -30,7 +31,7 @@ export default async function ItemDetailsPage({ params }: { params: Promise<{ ty
   const matchConditions = [{ categoryId: report.categoryId }, ...lostTokens.flatMap((token) => [{ title: { contains: token, mode: "insensitive" as const } }, { description: { contains: token, mode: "insensitive" as const } }, { brand: { contains: token, mode: "insensitive" as const } }, { color: { contains: token, mode: "insensitive" as const } }, { location: { contains: token, mode: "insensitive" as const } }])];
   const matches = type === "LOST" ? await prisma.foundItem.findMany({ where: { deletedAt: null, status: "ACTIVE", moderation: "APPROVED", OR: matchConditions }, take: 100, orderBy: { createdAt: "desc" }, select: { id: true, title: true, description: true, location: true, foundAt: true, brand: true, color: true, category: { select: { name: true } }, images: { take: 1, select: { id: true, url: true } } } }) : [];
   const possibleMatches = type === "LOST" ? matches.map((item) => ({ item, score: scorePossibleMatch({ title: report.title, category: report.category.name, description: report.description, brand: details.brand, color: details.color, location: report.location, occurredAt }, { title: item.title, category: item.category.name, description: item.description, brand: item.brand, color: item.color, location: item.location, occurredAt: item.foundAt }) })).filter((match) => match.score >= 45).sort((a, b) => b.score - a.score || b.item.foundAt.getTime() - a.item.foundAt.getTime()).slice(0, 4) : [];
-  return <div className="site-page"><SiteHeader /><main className="subpage-main page-width item-detail-page">
+  return <div className="site-page"><SiteHeader /><main className={`subpage-main page-width item-detail-page ${styles.detailPage}`}>
     <Link href="/items" className="button button-outline">← Back to Search Items</Link>
     <article className="item-detail-card"><div className="item-detail-gallery"><ItemImageCarousel images={report.images} title={report.title} /></div>
       <div className="item-detail-copy"><span className={`report-kind report-kind-${type.toLowerCase()}`}>{type === "LOST" ? "Lost item" : "Found item"}</span><p className="eyebrow">{report.category.name}{details.subcategory ? ` · ${details.subcategory}` : ""}</p><h1 className="page-title">{report.title}</h1><p>{report.description}</p>

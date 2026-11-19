@@ -5,7 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/auth-client";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 import { indianPhoneSchema, normalizeIndianPhone, usernameSchema } from "@/lib/validation/common";
+import styles from "../AuthPages.module.css";
 
 declare global {
   interface Window {
@@ -288,8 +290,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 8 || password.length > 128) {
-      setMessage("Password must be between 8 and 128 characters.");
+    if (password.length < 4 || password.length > 8) {
+      setMessage("Password must be between 4 and 8 characters.");
       setLoading(false);
       return;
     }
@@ -338,7 +340,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="auth-page">
+    <main className={`auth-page ${styles.authPage}`}>
       <aside className="auth-aside">
         <Link href="/" className="brand">
           <Image src="/img/revok-logo.png" width={52} height={52} alt="" className="brand-logo" />
@@ -522,15 +524,14 @@ export default function RegisterPage() {
               )}
               <label className="auth-field" htmlFor="register-password">
                 Password
-                <input
+                <PasswordInput
                   id="register-password"
-                  type="password"
                   autoComplete="new-password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="At least 8 characters"
-                  minLength={8}
-                  maxLength={128}
+                  placeholder="4 to 8 characters"
+                  minLength={4}
+                  maxLength={8}
                   required
                 />
               </label>
@@ -541,7 +542,8 @@ export default function RegisterPage() {
                   loading ||
                   !name.trim() ||
                   !usernameSchema.safeParse(username.trim()).success ||
-                  password.length < 8 ||
+                  password.length < 4 ||
+                  password.length > 8 ||
                   usernameAvailabilityState === "checking" ||
                   usernameAvailabilityState === "taken"
                 }

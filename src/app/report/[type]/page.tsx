@@ -4,6 +4,7 @@ import ReportForm from "@/components/reports/ReportForm";
 import SiteFooter from "@/components/site/SiteFooter";
 import SiteHeader from "@/components/site/SiteHeader";
 import { requireCanBrowse } from "@/lib/auth/guards";
+import styles from "./ReportPage.module.css";
 
 export default async function ReportPage({
   params,
@@ -24,7 +25,7 @@ export default async function ReportPage({
   return (
     <div className="site-page">
       <SiteHeader />
-      <main className={`subpage-main report-page-main page-width${isLost ? " report-page-main-lost" : ""}`}>
+      <main className={`subpage-main report-page-main page-width ${styles.reportPage}${isLost ? " report-page-main-lost" : ""}`}>
         {isLost ? <>
           <h1 className="page-title">Report Lost Item</h1>
           <p className="page-intro">Share a few details to help someone recognize your lost item.</p>

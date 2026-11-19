@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 
 export async function POST(request: Request) {
-  if (request.headers.get("origin") !== new URL(request.url).origin) {
+  if (!isSameOriginRequest(request)) {
     return Response.json({ error: "ORIGIN_NOT_ALLOWED", message: "This verification request is not allowed." }, { status: 403 });
   }
 

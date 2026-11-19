@@ -4,6 +4,7 @@ import { verifyWidgetAccessToken } from "@/lib/auth/sms";
 import { hashPassword } from "better-auth/crypto";
 import { indianPhoneSchema, normalizeIndianPhone, usernameSchema } from "@/lib/validation/common";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { handleApiError } from "@/lib/api/handle-error";
 
 const phoneRegistrationSchema = z.object({
@@ -11,13 +12,12 @@ const phoneRegistrationSchema = z.object({
   accessToken: z.string().min(10),
   name: z.string().trim().min(2).max(100),
   username: usernameSchema,
-  password: z.string().min(8).max(128),
+  password: z.string().min(4).max(8),
 });
 
 export async function POST(request: Request) {
   try {
-    const origin = request.headers.get("origin");
-    if (origin && origin !== new URL(request.url).origin) {
+    if (!isSameOriginRequest(request)) {
       return Response.json(
         { error: "ORIGIN_NOT_ALLOWED", message: "This registration request is not allowed." },
         { status: 403 }

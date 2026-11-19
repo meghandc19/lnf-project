@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { retryWidgetOtpServer } from "@/lib/auth/sms";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { handleApiError } from "@/lib/api/handle-error";
 
 const retryOtpSchema = z.object({
@@ -12,8 +13,7 @@ const retryOtpSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const origin = request.headers.get("origin");
-    if (origin && origin !== new URL(request.url).origin) {
+    if (!isSameOriginRequest(request)) {
       return Response.json(
         { error: "ORIGIN_NOT_ALLOWED", message: "This request is not allowed." },
         { status: 403 }

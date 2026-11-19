@@ -89,10 +89,17 @@ export const auth = betterAuth({
 
   account: {
     encryptOAuthTokens: true,
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
+      allowDifferentEmails: true,
+    },
   },
 
   emailAndPassword: {
     enabled: true,
+    minPasswordLength: 4,
+    maxPasswordLength: 8,
   },
 
   disabledPaths: [

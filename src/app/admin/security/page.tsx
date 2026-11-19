@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth/authorization";
 import { prisma } from "@/lib/prisma";
 import SiteFooter from "@/components/site/SiteFooter";
 import SiteHeader from "@/components/site/SiteHeader";
+import styles from "../AdminPages.module.css";
 import { getOtpProviderConfig } from "@/lib/auth/sms";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export default async function AdminSecurityPage() {
   ];
   const label = (state: Check["state"]) => state === "ready" ? "Configured" : state === "missing" ? "Needs attention" : "Not verified";
 
-  return <div className="site-page"><SiteHeader /><main className="page-width admin-main">
+  return <div className="site-page"><SiteHeader /><main className={`page-width admin-main ${styles.adminPage}`}>
     <Link href="/admin" className="button button-outline">← Admin overview</Link>
     <p className="eyebrow">Production configuration</p><h1>Security &amp; settings</h1>
     <p className="page-intro">Server-side configuration status for REVOK. Secret values are never included on this page.</p>

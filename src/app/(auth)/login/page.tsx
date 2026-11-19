@@ -5,7 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
+import styles from "../AuthPages.module.css";
 
 type LoginMethod = "username" | "phone";
 
@@ -52,6 +54,12 @@ export default function LoginPage() {
         setLoading(false);
       },
     };
+
+    if (password.length < 4 || password.length > 8) {
+      setMessage("Password must be between 4 and 8 characters.");
+      setLoading(false);
+      return;
+    }
 
     try {
       if (method === "username") {
@@ -100,7 +108,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="auth-page">
+    <main className={`auth-page ${styles.authPage}`}>
       <aside className="auth-aside">
         <Link href="/" className="brand"><Image src="/img/revok-logo.png" width={52} height={52} alt="" className="brand-logo" /><span>REVOK</span></Link>
         <div className="auth-aside-copy">
@@ -137,13 +145,13 @@ export default function LoginPage() {
             </label>
             <label className="auth-field">
               Password
-              <input
-                type="password"
+              <PasswordInput
                 autoComplete="current-password"
-                placeholder="Enter your password"
+                placeholder="4 to 8 characters"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                minLength={8}
+                minLength={4}
+                maxLength={8}
                 required
               />
             </label>

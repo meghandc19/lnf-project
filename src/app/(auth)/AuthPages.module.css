@@ -1,0 +1,66 @@
+.authPage {
+  min-width: 0;
+}
+
+.authPage :global(.auth-main) {
+  min-width: 0;
+}
+
+.authPage :global(.auth-card) {
+  width: min(100%, 500px);
+}
+
+.authPage :global(.auth-field input),
+.authPage :global(.auth-field select),
+.authPage :global(.auth-field textarea) {
+  min-width: 0;
+}
+
+.authPage :global(.auth-form .button),
+.authPage :global(.auth-card > .button) {
+  min-height: 48px;
+}
+
+@media (max-width: 900px) {
+  .authPage {
+    grid-template-columns: minmax(0, .85fr) minmax(0, 1fr);
+  }
+
+  .authPage :global(.auth-aside) {
+    padding-inline: clamp(22px, 4vw, 40px);
+  }
+}
+
+@media (max-width: 700px) {
+  .authPage {
+    display: block;
+    min-height: calc(100svh - 66px);
+  }
+
+  .authPage :global(.auth-aside) {
+    min-height: auto;
+    padding: 16px 20px 8px;
+  }
+
+  .authPage :global(.auth-aside-copy) {
+    margin-block: 18px 0;
+  }
+
+  .authPage :global(.auth-aside-copy h1) {
+    font-size: clamp(28px, 8vw, 36px);
+  }
+
+  .authPage :global(.auth-aside-copy p) {
+    max-width: 52ch;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .authPage :global(.auth-main) {
+    padding: 12px 14px 28px;
+  }
+
+  .authPage :global(.auth-card) {
+    padding: clamp(18px, 5vw, 24px);
+  }
+}

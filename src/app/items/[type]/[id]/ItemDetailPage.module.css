@@ -1,0 +1,83 @@
+.detailPage {
+  width: min(1240px, calc(100% - 48px));
+  padding-top: clamp(28px, 4vw, 54px);
+}
+
+.detailPage :global(.item-detail-card) {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr);
+  align-items: start;
+  gap: clamp(22px, 4vw, 54px);
+  margin-top: 20px;
+  padding: clamp(18px, 3vw, 32px);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.detailPage :global(.item-detail-copy) {
+  min-width: 0;
+}
+
+.detailPage :global(.item-detail-copy .page-title) {
+  margin-block: 7px 12px;
+  font-size: clamp(32px, 4vw, 52px);
+  overflow-wrap: anywhere;
+}
+
+.detailPage :global(.item-detail-copy > p:not(.eyebrow)) {
+  color: var(--muted);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.detailPage :global(.item-detail-facts) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 20px 0;
+}
+
+.detailPage :global(.item-detail-facts > div) {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f4f8f4;
+}
+
+.detailPage :global(.item-detail-facts dt) {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.detailPage :global(.item-detail-facts dd) {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .detailPage {
+    width: calc(100% - 28px);
+    padding-top: 22px;
+  }
+
+  .detailPage :global(.item-detail-card) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .detailPage :global(.item-detail-facts) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    margin-block: 14px;
+  }
+
+  .detailPage :global(.item-claim-action .button-row) {
+    align-items: stretch;
+  }
+}

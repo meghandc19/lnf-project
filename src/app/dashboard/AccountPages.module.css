@@ -1,0 +1,115 @@
+.dashboardPage,
+.profilePage,
+.claimsPage {
+  min-width: 0;
+}
+
+.dashboardPage {
+  padding-top: clamp(24px, 4vw, 48px);
+}
+
+.dashboardPage :global(.dashboard-user-header) {
+  min-width: 0;
+  box-shadow: 0 8px 24px rgb(16 52 34 / 4%);
+}
+
+.dashboardPage :global(.dashboard-report-card) {
+  min-width: 0;
+  grid-template-columns: minmax(88px, 140px) minmax(0, 1fr) minmax(150px, 210px);
+  align-items: start;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 16px;
+}
+
+.dashboardPage :global(.dashboard-report-image) {
+  width: 100%;
+  max-width: 140px;
+  aspect-ratio: 4 / 3;
+  height: auto;
+  object-fit: cover;
+}
+
+.dashboardPage :global(.dashboard-report-actions .button) {
+  width: 100%;
+  justify-content: center;
+}
+
+.profilePage {
+  padding-top: clamp(24px, 4vw, 50px);
+}
+
+.profilePage :global(.profile-layout) {
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, .8fr);
+}
+
+.profilePage :global(.profile-card),
+.profilePage :global(.profile-side-card) {
+  min-width: 0;
+}
+
+.claimsPage {
+  padding-top: clamp(24px, 4vw, 50px);
+}
+
+.claimsPage :global(.conversation-list-card) {
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+
+.claimsPage :global(.conversation-list-card:hover) {
+  border-color: #b4cfba;
+  box-shadow: 0 8px 22px rgb(16 52 34 / 6%);
+}
+
+@media (max-width: 800px) {
+  .dashboardPage :global(.dashboard-report-card) {
+    grid-template-columns: 100px minmax(0, 1fr);
+  }
+
+  .dashboardPage :global(.dashboard-report-actions) {
+    grid-column: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profilePage :global(.profile-layout) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .dashboardPage,
+  .profilePage,
+  .claimsPage {
+    padding-top: 20px;
+  }
+
+  .dashboardPage :global(.dashboard-report-card) {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 10px;
+    padding: 11px;
+  }
+
+  .dashboardPage :global(.dashboard-report-image) {
+    grid-row: span 2;
+    max-width: 72px;
+    border-radius: 10px;
+  }
+
+  .dashboardPage :global(.dashboard-report-actions) {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboardPage :global(.dashboard-user-header > .status-chip) {
+    margin-left: 0;
+  }
+
+  .dashboardPage :global(.dashboard-stats > a) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .claimsPage :global(.conversation-list-actions) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

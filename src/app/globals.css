@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #18352c;
-  --muted: #63746d;
-  --green: #176d50;
-  --green-deep: #104b39;
-  --mint: #dcefe5;
-  --mint-light: #f0f7f2;
-  --paper: #fbfaf6;
+  --ink: #102b20;
+  --muted: #5f7267;
+  --green: #087c48;
+  --green-deep: #075b37;
+  --mint: #e0f2e7;
+  --mint-light: #f1f8f3;
+  --paper: #f8faf7;
   --white: #fff;
-  --line: #dce5de;
-  --warm: #f2eee4;
-  --shadow: 0 18px 50px rgba(19, 54, 42, .09);
-  --font-body: Arial, Helvetica, sans-serif;
-  --font-display: Georgia, "Times New Roman", serif;
+  --line: #e0e9e2;
+  --warm: #f3f4ed;
+  --shadow: 0 16px 44px rgba(16, 52, 34, .075);
+  --font-body: "Segoe UI Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Segoe UI Variable Display", Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -31,9 +31,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .header-inner { width: min(1280px, calc(100% - 64px)); min-height: 78px; margin-inline: auto; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: 20px; font-weight: 800; letter-spacing: .12em; }
 .brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 11px 11px 11px 4px; background: var(--green); color: #fff; font-family: var(--font-display); font-size: 21px; font-weight: 700; letter-spacing: 0; }
-.main-nav { display: flex; align-items: center; gap: clamp(20px, 3vw, 38px); margin-left: auto; }
-.main-nav a, .footer-links a { color: #496158; font-size: 14px; font-weight: 600; transition: color .18s ease; }
-.main-nav a:hover, .footer-links a:hover { color: var(--green); }
+.footer-links a { color: #496158; font-size: 14px; font-weight: 600; transition: color .18s ease; }
+.footer-links a:hover { color: var(--green); }
 .header-actions, .hero-actions, .button-row, .closing-actions { display: flex; align-items: center; gap: 12px; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 46px; padding: 0 18px; border: 1px solid transparent; border-radius: 12px; font-size: 14px; font-weight: 700; line-height: 1; cursor: pointer; transition: transform .18s ease, background .18s ease, box-shadow .18s ease, border-color .18s ease; }
 .button:hover { transform: translateY(-1px); }
@@ -143,6 +142,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .auth-field { display: grid; gap: 7px; color: #344a40; font-size: 13px; font-weight: 700; }
 .auth-field input { width: 100%; min-height: 48px; padding: 0 13px; border: 1px solid #d8e1da; border-radius: 10px; background: #fff; color: var(--ink); font-size: 15px; }
 .auth-field input:focus { border-color: #78a88d; outline: 3px solid #dcefe5; }
+.password-input-wrap { position: relative; display: flex; align-items: center; width: 100%; }
+.password-input-wrap input { padding-right: 44px !important; }
+.password-toggle-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #6d8276; cursor: pointer; transition: color .15s ease, background-color .15s ease; }
+.password-toggle-btn:hover { color: var(--ink); background-color: #f0f4f1; }
+.password-toggle-btn:focus-visible { outline: 2px solid #78a88d; outline-offset: 1px; }
+.password-toggle-btn svg { width: 18px; height: 18px; display: block; }
 .auth-methods { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 17px; padding: 4px; border-radius: 12px; background: #f0f4ef; }
 .auth-methods button { min-height: 40px; border: 0; border-radius: 9px; background: transparent; color: #51665a; font-size: 13px; font-weight: 700; cursor: pointer; }
 .auth-methods button[aria-pressed="true"] { background: #fff; color: var(--green-deep); box-shadow: 0 2px 8px #1a352610; }
@@ -237,7 +242,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; clip-path: inset(50%); }
 
 /* Mobile-first REVOK identity and home actions */
-:root { --ink: #10271d; --muted: #62756a; --green: #087c43; --green-deep: #07592f; --mint: #dff7e8; --mint-light: #f0faf3; --paper: #fff; --line: #dce9df; }
 .site-header { background: rgba(255,255,255,.96); }
 .brand { gap: 7px; }
 .brand-logo { width: 43px; height: 43px; object-fit: contain; }
@@ -297,6 +301,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .profile-side-icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 14px; background: #dff3e4; color: var(--green); font-size: 25px; }
 .profile-side-card h2 { margin: 0; font-family: var(--font-body); font-size: 22px; font-weight: 800; letter-spacing: -.04em; }
 .profile-side-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.profile-google-link-card { border: 1px solid #d5e5db; background: linear-gradient(135deg, #f7fbf8 0%, #eef7f1 100%); display: grid; gap: 16px; }
+.google-link-banner-inner { display: flex; align-items: flex-start; gap: 16px; }
+.google-link-icon-wrap { display: grid; width: 46px; height: 46px; flex: 0 0 46px; place-items: center; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); }
+.google-link-copy { flex: 1; }
 .dashboard-heading-actions { display: flex; gap: 9px; }
 .account-avatar-image { object-fit: cover; }
 .dashboard-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 13px; margin-block: 18px 24px; }
@@ -325,7 +333,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .header-profile > img, .header-profile > span:first-child { width: 32px; height: 32px; }
   .header-profile-name { display: none; }
   .header-dashboard { display: none; }
-  .main-nav a { flex: 1; text-align: center; }
   .hero-section { min-height: 790px; align-items: flex-end; }
   .hero-content { padding-block: 380px 46px; }
   .hero-content h1 { font-size: clamp(39px, 10.6vw, 52px); }
@@ -475,8 +482,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .header-inner { width: min(1480px, calc(100% - 72px)); min-height: 98px; gap: 28px; }
 .brand { gap: 12px; font-size: 27px; letter-spacing: .1em; }
 .brand-logo { width: 68px; height: 68px; }
-.main-nav { gap: clamp(20px, 2.2vw, 34px); }
-.main-nav a { font-size: 16px; }
 .header-actions { gap: 14px; }
 .header-dashboard { font-size: 15px; }
 .header-profile { min-height: 52px; gap: 10px; padding: 4px 13px 4px 5px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font: inherit; cursor: pointer; }
@@ -535,8 +540,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .header-inner { width: calc(100% - 40px); min-height: 84px; gap: 17px; }
   .brand { font-size: 22px; }
   .brand-logo { width: 56px; height: 56px; }
-  .main-nav { gap: 13px; }
-  .main-nav a { font-size: 13px; }
   .hero-section { min-height: calc(100svh - 84px); }
   .hero-action { min-width: 0; }
 }
@@ -544,8 +547,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .header-inner { width: calc(100% - 28px); min-height: 0; gap: 0; padding-block: 8px; }
   .brand { gap: 7px; font-size: 18px; }
   .brand-logo { width: 46px; height: 46px; }
-  .main-nav { gap: 9px; padding-top: 8px; }
-  .main-nav a { font-size: 11px; }
   .header-actions { gap: 6px; }
   .header-profile { min-height: 42px; gap: 6px; padding: 3px 8px 3px 3px; }
   .header-profile > img, .header-profile > span:first-child { width: 34px; height: 34px; }
@@ -572,7 +573,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .header-inner { width: min(1400px, calc(100% - 64px)); min-height: 88px; }
 .brand { gap: 9px; font-size: clamp(19px, 1.45vw, 24px); }
 .brand-logo { width: clamp(44px, 3.5vw, 54px); height: clamp(44px, 3.5vw, 54px); }
-.main-nav a { font-size: 15px; }
 .page-width { width: min(1280px, calc(100% - 64px)); }
 .hero-section { min-height: clamp(500px, 58vh, 680px); }
 .hero-content h1 { max-width: 850px; font-size: clamp(52px, 5.3vw, 88px); }
@@ -599,8 +599,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .header-inner { width: calc(100% - 30px); min-height: 66px; }
   .brand { font-size: 18px; }
   .brand-logo { width: 40px; height: 40px; }
-  .main-nav { gap: 5px; }
-  .main-nav a { font-size: 11px; }
   .hero-section { min-height: 790px; }
   .hero-content h1 { font-size: clamp(39px, 10.6vw, 54px); }
   .hero-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
@@ -766,23 +764,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 /* Phase 1 mobile refinements for REVOK's shared navigation and account pages. */
-.mobile-nav-toggle, .mobile-only-nav-link { display: none; }
-
 @media (max-width: 650px) {
   .page-width, .availability-band, .footer-inner, .footer-bottom { width: calc(100% - 36px); }
   .header-inner { position: relative; width: calc(100% - 28px); min-height: 66px; flex-wrap: nowrap; gap: 10px; padding-block: 8px; }
   .brand { flex: 0 0 auto; gap: 6px; font-size: 18px; }
   .brand-logo { width: 42px; height: 42px; }
-  .mobile-nav-toggle { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); cursor: pointer; }
-  .menu-icon { display: grid; gap: 5px; }
-  .menu-icon i { display: block; width: 19px; height: 2px; border-radius: 2px; background: currentColor; transition: transform .18s ease; }
-  .menu-icon.is-open i:first-child { transform: translateY(3.5px) rotate(45deg); }
-  .menu-icon.is-open i:last-child { transform: translateY(-3.5px) rotate(-45deg); }
-  .main-nav { position: absolute; z-index: 20; top: calc(100% + 7px); right: 0; left: 0; display: none; width: auto; order: initial; flex-direction: column; align-items: stretch; gap: 2px; margin: 0; padding: 8px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 16px 38px rgb(16 43 28 / 14%); }
-  .main-nav.is-open { display: flex; }
-  .main-nav a { min-height: 44px; display: flex; align-items: center; padding: 9px 12px; border-radius: 10px; font-size: 14px; text-align: left; }
-  .main-nav a:hover { background: var(--mint-light); }
-  .mobile-only-nav-link { display: flex !important; }
   .header-actions { flex: 0 0 auto; margin-left: auto; }
   .header-actions > .button { display: none; }
   .header-dashboard { display: none; }
@@ -859,14 +845,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .header-inner { width: calc(100% - 22px); gap: 7px; }
   .brand { gap: 4px; font-size: 16px; }
   .brand-logo { width: 39px; height: 39px; }
-  .mobile-nav-toggle { width: 40px; height: 40px; }
   .hero-content { width: calc(100% - 32px); }
   .hero-action { font-size: 12px; }
 }
 @media (max-width: 900px) {
   .header-inner { width: min(100% - 40px, 1280px); gap: 18px; }
-  .main-nav { gap: 17px; }
-  .main-nav a { font-size: 13px; }
   .hero-section { min-height: 535px; }
   .hero-caption { right: 22px; bottom: 20px; }
   .intro-section { gap: 35px; }
@@ -887,8 +870,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .header-actions { gap: 4px; }
   .button-small { min-height: 38px; padding-inline: 11px; font-size: 12px; }
   .button-quiet { min-height: 38px; padding-inline: 9px; font-size: 12px; }
-  .main-nav { order: 3; width: 100%; justify-content: space-between; gap: 7px; padding-top: 10px; }
-  .main-nav a { padding: 5px 0; font-size: 12px; }
   .hero-section { min-height: 610px; align-items: flex-end; }
   .hero-content { padding-block: 240px 68px; }
   .hero-content h1 { font-size: clamp(42px, 12vw, 60px); }
@@ -1045,21 +1026,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .header-inner { min-height: 98px; }
 .brand-logo { width: 68px; height: 68px; }
 .brand { font-size: 27px; }
-.main-nav a { font-size: 16px; }
 .hero-section { min-height: calc(100svh - 98px); }
 .hero-action { min-height: 68px; font-size: 16px; }
 @media (max-width: 900px) {
   .header-inner { min-height: 84px; }
   .brand-logo { width: 56px; height: 56px; }
   .brand { font-size: 22px; }
-  .main-nav a { font-size: 13px; }
   .hero-section { min-height: calc(100svh - 84px); }
 }
 @media (max-width: 650px) {
   .header-inner { min-height: 0; }
   .brand-logo { width: 46px; height: 46px; }
   .brand { font-size: 18px; }
-  .main-nav a { font-size: 11px; }
   .hero-section { min-height: max(690px, calc(100svh - 106px)); }
   .hero-action { min-height: 62px; font-size: 11px; }
   .profile-preview > img, .profile-preview > span { width: 76px; height: 76px; }
@@ -1094,26 +1072,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 /* REVOK's refined evergreen palette and native, fast-loading type system. */
-:root {
-  --ink: #102b20;
-  --muted: #5f7267;
-  --green: #087c48;
-  --green-deep: #075b37;
-  --mint: #e0f2e7;
-  --mint-light: #f1f8f3;
-  --paper: #f8faf7;
-  --white: #fff;
-  --line: #e0e9e2;
-  --warm: #f3f4ed;
-  --shadow: 0 16px 44px rgba(16, 52, 34, .075);
-  --font-body: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", system-ui, sans-serif;
-  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Aptos Display", "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", system-ui, sans-serif;
-}
 body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-optical-sizing: auto; font-synthesis: none; line-height: 1.62; }
 :where(h1, h2, h3, h4, h5, h6) { color: var(--ink); font-family: var(--font-display); font-optical-sizing: auto; text-wrap: balance; }
 :where(p, li) { text-wrap: pretty; }
 .site-header { background: rgb(255 255 255 / 96%); box-shadow: 0 5px 24px rgb(16 52 34 / 3%); }
-.main-nav a, .footer-links a { transition: color .2s ease, opacity .2s ease; }
+.footer-links a { transition: color .2s ease, opacity .2s ease; }
 .button { border-radius: 14px; font-family: var(--font-body); font-weight: 700; transition-duration: .22s; }
 .button-primary { background: linear-gradient(135deg, #0a8950, #087342); box-shadow: 0 9px 22px rgb(8 124 72 / 18%); }
 .button-primary:hover { background: linear-gradient(135deg, #087744, #064e31); box-shadow: 0 12px 26px rgb(8 94 55 / 22%); }
@@ -1146,7 +1109,6 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
 .hero-word-rotator span { font-family: var(--font-display); font-weight: 750; }
 
 /* Item reporting and discovery controls: calmer type hierarchy and a touch-friendly layout. */
-:root { --font-body: "Segoe UI Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; --font-display: "Segoe UI Variable Display", Inter, ui-sans-serif, system-ui, sans-serif; }
 .hero-word-lens::after { display: none !important; content: none !important; }
 .item-search-advanced { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: end; }
 .item-search-advanced label { display: grid; gap: 7px; color: var(--ink); font-size: 13px; font-weight: 700; }
@@ -1232,11 +1194,6 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
   .site-header-home + main .hero-caption { position: relative; right: auto; bottom: auto; display: flex; width: calc(100% - 44px); min-height: 84px; align-items: center; gap: 17px; margin: 34px auto 34px; padding: 15px 18px; border: 1px solid #dcebe1; border-radius: 23px; background: rgb(255 255 255 / 84%); font-family: var(--font-body); font-size: 15px; line-height: 1.55; box-shadow: 0 8px 24px rgb(19 54 42 / 5%); }
   .site-header-home + main .caption-symbol { width: 42px; height: 42px; flex: 0 0 auto; border-radius: 50%; font-size: 25px; }
 
-  .site-header-home .menu-icon { gap: 5px; }
-  .site-header-home .menu-icon i { width: 21px; height: 2px; background: var(--green-deep); }
-  .site-header-home .menu-icon.is-open i:nth-child(2) { opacity: 0; }
-  .site-header-home .menu-icon.is-open i:first-child { transform: translateY(7px) rotate(45deg); }
-  .site-header-home .menu-icon.is-open i:last-child { transform: translateY(-7px) rotate(-45deg); }
 }
 
 @media (max-width: 390px) {

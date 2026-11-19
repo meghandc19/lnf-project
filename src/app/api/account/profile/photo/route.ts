@@ -2,13 +2,14 @@ import { requireActiveUser } from "@/lib/auth/guards";
 import { handleApiError } from "@/lib/api/handle-error";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { IMAGE_LIMITS, removeStoredImage, storeImage } from "@/lib/uploads/images";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    if (request.headers.get("origin") !== new URL(request.url).origin) {
+    if (!isSameOriginRequest(request)) {
       return Response.json({ message: "This photo upload is not allowed." }, { status: 403 });
     }
     const user = await requireActiveUser();
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    if (request.headers.get("origin") !== new URL(request.url).origin) {
+    if (!isSameOriginRequest(request)) {
       return Response.json({ message: "This photo removal is not allowed." }, { status: 403 });
     }
     const user = await requireActiveUser();

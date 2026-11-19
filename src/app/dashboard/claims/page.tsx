@@ -5,6 +5,7 @@ import SiteFooter from "@/components/site/SiteFooter";
 import ConversationList, { type ConversationEntry } from "@/components/claims/ConversationList";
 import { requireCanBrowse } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import styles from "../AccountPages.module.css";
 
 type View = "sent" | "received";
 export default async function DashboardClaimsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
@@ -30,7 +31,7 @@ export default async function DashboardClaimsPage({ searchParams }: { searchPara
     return [{ id: claim.id, status: claim.status, createdAt: claim.createdAt.toISOString(), item: { id: claim.foundItem.id, title: claim.foundItem.title, location: claim.foundItem.location, custodyStatus: claim.foundItem.custodyStatus, image: claim.foundItem.images[0]?.url ?? null }, other, lastMessage: lastMessage ? { content: lastMessage.content, createdAt: lastMessage.createdAt.toISOString(), senderId: lastMessage.senderId } : null, lastReadAt: lastReadAt?.toISOString() ?? null, viewerId: user.id }];
   });
 
-  return <div className="site-page"><SiteHeader /><main className="dashboard-main page-width claims-hub-page">
+  return <div className="site-page"><SiteHeader /><main className={`dashboard-main page-width claims-hub-page ${styles.claimsPage}`}>
     <Link className="button button-outline" href="/dashboard/claims">← Claim requests</Link><p className="eyebrow">{view === "sent" ? "My Claims" : "Claim Requests Received"}</p><h1 className="page-title">{view === "sent" ? "My Claims" : "Claim Requests Received"}</h1>
     <nav className="claim-list-switch" aria-label="Claim conversation lists"><Link className={view === "sent" ? "is-current" : ""} href="/dashboard/claims?view=sent">My Claims</Link><Link className={view === "received" ? "is-current" : ""} href="/dashboard/claims?view=received">Claim Requests Received</Link></nav>
     <ConversationList initialItems={conversations} emptyText={view === "sent" ? "Claim requests you send will appear here." : "No claim requests have been received for your found items yet."} />

@@ -4,7 +4,9 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
+import styles from "../AuthPages.module.css";
 
 type ResetStep = "phone" | "otp" | "password" | "success";
 
@@ -124,8 +126,8 @@ export default function ForgotPasswordPage() {
     event.preventDefault();
     setMessage("");
 
-    if (newPassword.length < 8 || newPassword.length > 128) {
-      setMessage("Password must be between 8 and 128 characters.");
+    if (newPassword.length < 4 || newPassword.length > 8) {
+      setMessage("Password must be between 4 and 8 characters.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -168,7 +170,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="auth-page">
+    <main className={`auth-page ${styles.authPage}`}>
       <aside className="auth-aside">
         <Link href="/" className="brand">
           <Image src="/img/revok-logo.png" width={52} height={52} alt="" className="brand-logo" />
@@ -177,7 +179,7 @@ export default function ForgotPasswordPage() {
         <div className="auth-aside-copy">
           <p className="eyebrow">Account Recovery</p>
           <h1>Reset your password</h1>
-          <p>We'll verify your identity through your registered phone number to safely update your password.</p>
+          <p>We&apos;ll verify your identity through your registered phone number to safely update your password.</p>
         </div>
         <p className="auth-aside-note">
           <Link href="/login">← Back to Login</Link>
@@ -268,36 +270,34 @@ export default function ForgotPasswordPage() {
             <form className="auth-form" onSubmit={handleResetPassword}>
               <label className="auth-field" htmlFor="reset-new-password">
                 New password
-                <input
+                <PasswordInput
                   id="reset-new-password"
-                  type="password"
                   autoComplete="new-password"
-                  placeholder="At least 8 characters"
+                  placeholder="4 to 8 characters"
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
-                  minLength={8}
-                  maxLength={128}
+                  minLength={4}
+                  maxLength={8}
                   required
                 />
               </label>
               <label className="auth-field" htmlFor="reset-confirm-password">
                 Confirm new password
-                <input
+                <PasswordInput
                   id="reset-confirm-password"
-                  type="password"
                   autoComplete="new-password"
                   placeholder="Repeat new password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  minLength={8}
-                  maxLength={128}
+                  minLength={4}
+                  maxLength={8}
                   required
                 />
               </label>
               <button
                 className="auth-submit"
                 type="submit"
-                disabled={loading || newPassword.length < 8 || newPassword !== confirmPassword}
+                disabled={loading || newPassword.length < 4 || newPassword.length > 8 || newPassword !== confirmPassword}
               >
                 {loading ? "Updating password..." : "Update password"}
               </button>

@@ -9,6 +9,7 @@ import StewardManagement from "@/components/admin/StewardManagement";
 import UserReportDecision from "@/components/admin/UserReportDecision";
 import ReportSubmitterControls from "@/components/admin/ReportSubmitterControls";
 import AdminRecentActivity from "@/components/admin/AdminRecentActivity";
+import styles from "./AdminPages.module.css";
 
 const dateFormatter = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" });
 const submitterSelection = { id: true, name: true, username: true, image: true, phoneNumber: true, role: true, status: true, emailVerified: true, phoneNumberVerified: true } as const;
@@ -48,7 +49,7 @@ export default async function AdminPage({ searchParams }: { searchParams?: Promi
 
   return <div className="site-page">
     <SiteHeader />
-    <main className="admin-main page-width">
+    <main className={`admin-main page-width ${styles.adminPage}`}>
       <div className="admin-heading"><div><p className="eyebrow">REVOK administration</p><h1>Welcome, {admin.name}.</h1><p>Choose a count to open its management list. Decisions are logged and recent status changes can be undone for 10 minutes.</p></div><div className="admin-heading-actions"><span className="status-chip">{admin.role.replaceAll("_", " ")}</span><LogoutButton /></div></div>
 
       <section className="admin-metrics" aria-label="Administration overview">

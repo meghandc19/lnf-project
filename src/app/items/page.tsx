@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import SearchControls from "@/components/items/SearchControls";
+import SearchItemCard from "@/components/items/SearchItemCard";
 import SiteFooter from "@/components/site/SiteFooter";
 import SiteHeader from "@/components/site/SiteHeader";
 import { prisma } from "@/lib/prisma";
 import { ITEM_CATEGORIES } from "@/lib/items/categories";
 import { normalizeSearchText, searchRelevance, searchTokenVariants } from "@/lib/items/matching";
 import type { Prisma } from "@/generated/prisma/client";
+import styles from "./ItemsPage.module.css";
 
 export const metadata: Metadata = {
   title: "Search Items | REVOK",
@@ -83,19 +84,13 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
   };
   const lastPage = Math.min(maxPage, Math.ceil(Math.min(total, maxPage * pageSize) / pageSize));
 
-  return <div className="site-page"><SiteHeader /><main className="subpage-main page-width search-items-page">
+  return <div className="site-page"><SiteHeader /><main className={`subpage-main page-width search-items-page ${styles.itemsPage}`}>
     <p className="eyebrow">Community listings</p>
     <h1 className="page-title">Search Items</h1>
     <p className="page-intro">Browse approved {type === "FOUND" ? "found" : "lost"} reports. Private ownership details and contact information are not shown.</p>
     <SearchControls values={values} count={total} />
     {reports.length ? <section className="search-items-grid" aria-label={`${type === "FOUND" ? "Found" : "Lost"} item results`}>
-      {reports.map((report) => <Link href={`/items/${report.type.toLowerCase()}/${report.id}`} className="search-item-card" key={`${report.type}-${report.id}`} aria-label={`${report.type === "FOUND" ? "Found" : "Lost"}: ${report.title}, ${report.category.name}, ${report.location}`}>
-        <span className={`search-item-image-wrap${report.images[0] ? "" : " is-placeholder"}`}>
-          {report.images[0] ? <Image src={report.images[0].url} alt="" fill sizes="(max-width: 650px) 32vw, (max-width: 1100px) 20vw, 16vw" className="search-item-image" unoptimized /> : <span aria-hidden="true">✳</span>}
-          <span className={`report-kind report-kind-${report.type.toLowerCase()}`}>{report.type === "FOUND" ? "Found" : "Lost"}</span>
-        </span>
-        <span className="search-item-card-copy"><strong>{report.title}</strong><span>{report.category.name}</span><span className="search-item-location">{report.location}</span></span>
-      </Link>)}
+      {reports.map((report) => <SearchItemCard item={report} key={`${report.type}-${report.id}`} />)}
     </section> : <section className="empty-state search-items-empty" aria-labelledby="empty-title"><span className="empty-symbol" aria-hidden="true">⌕</span><p className="eyebrow">No {type.toLowerCase()} items found</p><h2 id="empty-title">There are no matching public reports yet.</h2><p>{query ? "Try a shorter search, another spelling, or clear a filter. Reports appear after review." : "New reports remain private to their owner while pending review."}</p><div className="button-row"><Link className="button button-primary" href="/report/lost">Report lost</Link><Link className="button button-outline" href="/report/found">Report found</Link></div></section>}
     {lastPage > 1 && <nav className="search-pagination" aria-label="Search result pages">{page > 1 && <Link className="button button-outline" href={pageHref(values, page - 1)}>Previous</Link>}<span>Page {page} of {lastPage}</span>{page < lastPage && <Link className="button button-outline" href={pageHref(values, page + 1)}>Next</Link>}</nav>}
   </main><SiteFooter /></div>;
