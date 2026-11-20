@@ -4,6 +4,16 @@ function sha256(value: Uint8Array | string) { return createHash("sha256").update
 function hmac(key: Uint8Array | string, value: string) { return createHmac("sha256", key).update(value).digest(); }
 function encodePath(value: string) { return value.split("/").map(encodeURIComponent).join("/"); }
 
+function providerErrorContext(body: string) {
+  const xmlValue = (name: string) => {
+    const match = body.match(new RegExp(`<${name}>([^<]{1,200})</${name}>`, "i"));
+    return match?.[1]?.trim().replace(/[\r\n\t]/g, " ");
+  };
+  const code = xmlValue("Code");
+  const requestId = xmlValue("RequestId") ?? xmlValue("HostId");
+  return [code, requestId ? `request ${requestId}` : undefined].filter(Boolean).join(", ");
+}
+
 function config() {
   const bucket = process.env.S3_BUCKET;
   const region = process.env.S3_REGION;
@@ -51,6 +61,15 @@ export async function s3Request(method: "PUT" | "GET" | "DELETE", key: string, b
   };
   if (mimeType) headers["content-type"] = mimeType;
   const response = await fetch(url, { method, headers, ...(body ? { body: new Uint8Array(body) } : {}) });
-  if (!response.ok) throw new Error(`Object storage request failed (${response.status}).`);
+  if (!response.ok) {
+    // Keep the provider's response body out of user-facing API errors and logs;
+    // the machine-readable S3 code and request ID are enough to diagnose 403s.
+    const context = providerErrorContext(await response.text().catch(() => ""));
+    const requestId = response.headers.get("x-amz-request-id");
+    const details = [context, requestId && !context.includes(requestId) ? `request ${requestId}` : undefined]
+      .filter(Boolean)
+      .join(", ");
+    throw new Error(`Object storage request failed (${response.status}${details ? `: ${details}` : ""}).`);
+  }
   if (method === "GET") return new Uint8Array(await response.arrayBuffer());
 }

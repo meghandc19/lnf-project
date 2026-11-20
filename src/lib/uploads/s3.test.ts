@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash, createHmac } from "node:crypto";
 import { createServer } from "node:http";
 import test from "node:test";
 import { s3Request } from "./s3.ts";
@@ -12,9 +13,31 @@ test("S3-compatible adapter signs requests and uploads, reads, and deletes objec
     request.on("end", () => {
       const key = String(request.url ?? "");
       const method: string = request.method as unknown as string;
-      assert.match(request.headers.authorization ?? "", /^AWS4-HMAC-SHA256 Credential=test-access-key\//);
       const contentHash = request.headers["x-amz-content-sha256"];
-      assert.match(Array.isArray(contentHash) ? contentHash[0] ?? "" : contentHash ?? "", /^[a-f0-9]{64}$/);
+      const payloadHash = createHash("sha256").update(Buffer.concat(chunks)).digest("hex");
+      const contentHashValue = Array.isArray(contentHash) ? contentHash[0] ?? "" : contentHash ?? "";
+      assert.equal(contentHashValue, payloadHash);
+      const date = String(request.headers["x-amz-date"] ?? "");
+      const shortDate = date.slice(0, 8);
+      const canonicalHeaders = [
+        ["host", String(request.headers.host ?? "")],
+        ...(request.headers["content-type"] ? [["content-type", String(request.headers["content-type"])]] : []),
+        ["x-amz-content-sha256", contentHashValue],
+        ["x-amz-date", date],
+      ].sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}:${value}`).join("\n");
+      const signedHeaders = canonicalHeaders.split("\n").map((line) => line.slice(0, line.indexOf(":"))).join(";");
+      const scope = `${shortDate}/auto/s3/aws4_request`;
+      const canonicalRequest = [method, key, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
+      const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+      const sign = (secret: Buffer | string, value: string) => createHmac("sha256", secret).update(value).digest();
+      const signingKey = sign(sign(sign(sign("AWS4test-secret-key", shortDate), "auto"), "s3"), "aws4_request");
+      const stringToSign = `AWS4-HMAC-SHA256\n${date}\n${scope}\n${digest(canonicalRequest)}`;
+      const expectedSignature = createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+      assert.equal(request.headers.authorization, `AWS4-HMAC-SHA256 Credential=test-access-key/${scope}, SignedHeaders=${signedHeaders}, Signature=${expectedSignature}`);
+      if (key.endsWith("/denied")) {
+        response.writeHead(403, { "Content-Type": "application/xml" }).end("<Error><Code>AccessDenied</Code><RequestId>test-request-id</RequestId></Error>");
+        return;
+      }
       if (method === "PUT") { stored.set(key, Buffer.concat(chunks)); response.writeHead(200).end(); }
       else if (method === "GET") { response.writeHead(stored.has(key) ? 200 : 404).end(stored.get(key)); }
       else if (method === "DELETE") { stored.delete(key); response.writeHead(204).end(); }
@@ -41,4 +64,5 @@ test("S3-compatible adapter signs requests and uploads, reads, and deletes objec
   assert.deepEqual(await s3Request("GET", "items/demo.jpg"), bytes);
   await s3Request("DELETE", "items/demo.jpg");
   await assert.rejects(s3Request("GET", "items/demo.jpg"), /Object storage request failed \(404\)/);
+  await assert.rejects(s3Request("GET", "items/denied"), /Object storage request failed \(403: AccessDenied, request test-request-id\)/);
 });
