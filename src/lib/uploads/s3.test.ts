@@ -19,13 +19,14 @@ test("S3-compatible adapter signs requests and uploads, reads, and deletes objec
       assert.equal(contentHashValue, payloadHash);
       const date = String(request.headers["x-amz-date"] ?? "");
       const shortDate = date.slice(0, 8);
-      const canonicalHeaders = [
+      const canonicalHeaderPairs = [
         ["host", String(request.headers.host ?? "")],
         ...(request.headers["content-type"] ? [["content-type", String(request.headers["content-type"])]] : []),
         ["x-amz-content-sha256", contentHashValue],
         ["x-amz-date", date],
-      ].sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}:${value}`).join("\n");
-      const signedHeaders = canonicalHeaders.split("\n").map((line) => line.slice(0, line.indexOf(":"))).join(";");
+      ].sort(([a], [b]) => a.localeCompare(b));
+      const canonicalHeaders = `${canonicalHeaderPairs.map(([name, value]) => `${name}:${value}`).join("\n")}\n`;
+      const signedHeaders = canonicalHeaderPairs.map(([name]) => name).join(";");
       const scope = `${shortDate}/auto/s3/aws4_request`;
       const canonicalRequest = [method, key, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
       const digest = (value: string) => createHash("sha256").update(value).digest("hex");

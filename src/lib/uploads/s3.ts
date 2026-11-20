@@ -47,7 +47,9 @@ export async function s3Request(method: "PUT" | "GET" | "DELETE", key: string, b
     ["x-amz-content-sha256", payloadHash],
     ["x-amz-date", date],
   ].sort(([a], [b]) => a.localeCompare(b));
-  const canonicalHeaders = headerPairs.map(([name, value]) => `${name}:${value}`).join("\n");
+  // SigV4's canonical header block must end with a newline; the next newline
+  // added by canonicalRequest separates that block from SignedHeaders.
+  const canonicalHeaders = `${headerPairs.map(([name, value]) => `${name}:${value}`).join("\n")}\n`;
   const signedHeaders = headerPairs.map(([name]) => name).join(";");
   const canonicalRequest = [method, url.pathname, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
   const scope = `${shortDate}/${region}/s3/aws4_request`;
