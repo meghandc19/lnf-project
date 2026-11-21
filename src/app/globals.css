@@ -17,7 +17,7 @@
 }
 
 * { box-sizing: border-box; }
-html { min-height: 100%; scroll-behavior: smooth; }
+html { min-height: 100%; }
 body { margin: 0; min-height: 100%; background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.55; }
 a { color: inherit; text-decoration: none; }
 button, input { font: inherit; }
@@ -584,17 +584,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .auth-google-button:hover { background: #f8fbf8; border-color: #a8c6b0; }
 .auth-google-button:disabled { cursor: wait; opacity: .65; }
 .google-g { font-family: Arial, sans-serif; font-size: 20px; font-weight: 800; background: conic-gradient(from -45deg, #4285f4 0 25%, #34a853 25% 50%, #fbbc05 50% 75%, #ea4335 75%); color: transparent; background-clip: text; }
-.cursor-footprint-layer { position: fixed; z-index: 10000; inset: 0; overflow: hidden; pointer-events: none; }
-.cursor-footprint { position: absolute; display: block; width: 16px; height: 17px; color: rgb(8 124 67 / 53%); opacity: 0; transform: translate(-50%, -50%) rotate(var(--foot-angle)) scale(.72); animation: cursor-footstep 760ms cubic-bezier(.2,.7,.3,1) forwards; will-change: transform, opacity; }
-.cursor-footprint-right { color: rgb(77 166 95 / 49%); }
-.cursor-footprint svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1px 1px rgb(12 52 29 / 9%)); }
-.cursor-footprint .footprint-pad { fill: currentColor; }
-@keyframes cursor-footstep {
-  0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--foot-angle)) scale(.62); }
-  14% { opacity: .58; transform: translate(-50%, -50%) rotate(var(--foot-angle)) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--foot-angle)) scale(1.08); }
-}
-
 @media (max-width: 650px) {
   .header-inner { width: calc(100% - 30px); min-height: 66px; }
   .brand { font-size: 18px; }
@@ -605,10 +594,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .hero-action { min-width: 0; min-height: 62px; gap: 6px; padding: 8px; font-size: 10px; line-height: 1.2; }
   .hero-action svg { width: 17px; height: 17px; }
 }
-@media (pointer: coarse), (prefers-reduced-motion: reduce) {
-  .cursor-footprint-layer { display: none; }
-}
-
 @keyframes enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
@@ -1310,14 +1295,6 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
 }
 
 /* Homepage: code-drawn hero art and compact mobile actions. */
-.home-intro-stage { min-height: 100%; opacity: 1; }
-.home-intro-stage.is-intro-playing { opacity: 0; pointer-events: none; }
-.home-intro-stage.is-intro-revealing { opacity: 1; transition: opacity 850ms linear; }
-.home-intro-overlay { position: fixed; z-index: 2147483000; inset: 0; overflow: hidden; background: #fff; opacity: 1; transition: opacity 850ms linear; pointer-events: none; }
-.home-intro-overlay.is-fading { opacity: 0; }
-.home-intro-video-viewport { position: absolute; inset: 0; overflow: hidden; }
-.home-intro-video-viewport video { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
-.home-intro-skip { position: absolute; z-index: 1; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); min-height: 44px; padding: 0 17px; border: 1px solid rgb(255 255 255 / 72%); border-radius: 999px; background: rgb(8 104 62 / 92%); color: #fff; font: inherit; font-size: 14px; font-weight: 750; box-shadow: 0 4px 18px rgb(0 0 0 / 18%); pointer-events: auto; }
 .home-hero-section {
   position: relative;
   display: flex;
@@ -1337,7 +1314,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
   margin: 0 auto;
   padding-block: 68px 92px;
 }
-.home-hero-copy { position: relative; z-index: 1; min-width: 0; animation: enter .65s ease both; }
+.home-hero-copy { position: relative; z-index: 1; min-width: 0; }
 .home-hero-eyebrow { display: flex; align-items: center; gap: 11px; margin: 0 0 23px; color: #087c48; font-size: 13px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 .home-hero-eyebrow > span { flex: 0 0 10px; width: 10px; height: 10px; border-radius: 50%; background: #51a879; }
 .home-hero-copy h1 { display: flex; flex-direction: column; margin: 0; color: #102d23; font-size: clamp(48px, 5.3vw, 82px); font-weight: 800; letter-spacing: -.065em; line-height: .99; }
@@ -1353,8 +1330,6 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
 .home-illustration { position: relative; z-index: 0; width: 100%; max-width: 620px; margin-inline: auto; }
 .home-illustration svg { display: block; width: 100%; height: auto; overflow: visible; }
 .home-flight-trail { opacity: .92; }
-.home-plane-motion { color: #078b4b; }
-.home-plane-still { display: none; }
 .home-hero-wave { position: absolute; z-index: -1; right: 0; bottom: -1px; left: 0; width: 100%; height: clamp(38px, 7vw, 100px); color: #e4f3e8; }
 .home-hero-wave path + path { color: #d1ead9; }
 
@@ -1366,11 +1341,9 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
   .home-hero-action:nth-child(3) { grid-column: 1 / -1; }
 }
 @media (max-width: 650px) {
-  .home-intro-video-viewport video { position: absolute; top: 0; left: 50%; width: auto; height: 100%; max-width: none; object-fit: contain; object-position: center; transform: translateX(-50%); }
   .dashboard-sent-hint { padding: 14px; }
   .dashboard-sent-hint-heading { align-items: flex-start; flex-direction: column; }
   .dashboard-sent-hint-heading .button { width: 100%; }
-  .home-intro-skip { top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); min-height: 44px; padding-inline: 14px; font-size: 13px; }
   .home-hero-grid { grid-template-columns: minmax(0, 1fr); width: calc(100% - 36px); gap: 9px; padding-block: 39px 68px; }
   .home-hero-eyebrow { gap: 8px; margin-bottom: 17px; font-size: 10px; letter-spacing: .105em; }
   .home-hero-eyebrow > span { flex-basis: 8px; width: 8px; height: 8px; }
@@ -1392,13 +1365,6 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
   .home-hero-description { font-size: 15px; }
   .home-hero-action { min-height: 53px; font-size: 13px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .home-intro-stage.is-intro-revealing, .home-intro-overlay { transition-duration: .01ms; }
-  .home-hero-copy { animation: none; }
-  .home-plane-motion { display: none; }
-  .home-plane-still { display: inline; }
-}
-
 /* Report found flow */
 .found-page-heading { max-width: 790px; }
 .found-page-heading .eyebrow { margin: 19px 0 7px; }
@@ -1594,8 +1560,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
 .journey-steps { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 0; padding: 0; list-style: none; counter-reset: journey; }
 .journey-step { position: relative; min-height: 230px; padding: 24px; overflow: visible; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(150deg, #fff 35%, #f4faf5); box-shadow: var(--shadow); }
 .journey-step:not(:nth-child(3n))::after { position: absolute; z-index: 1; top: 46px; right: -23px; width: 21px; height: 2px; background: #91c7a6; content: ""; }
-.journey-step-icon { display: grid; width: 56px; height: 56px; margin-bottom: 20px; place-items: center; border: 1px solid #d8ecdf; border-radius: 17px; background: #eaf6ee; font-size: 29px; animation: journey-float 3.4s ease-in-out infinite; }
-.journey-step:nth-child(2n) .journey-step-icon { animation-delay: -1.7s; }
+.journey-step-icon { display: grid; width: 56px; height: 56px; margin-bottom: 20px; place-items: center; border: 1px solid #d8ecdf; border-radius: 17px; background: #eaf6ee; font-size: 29px; }
 .journey-step-number { color: var(--green); font-size: 11px; font-weight: 850; letter-spacing: .14em; }
 .journey-step h2 { margin: 8px 0; color: var(--ink); font-family: var(--font-display); font-size: clamp(19px, 2vw, 24px); line-height: 1.2; }
 .journey-step p { max-width: 38ch; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
@@ -1604,7 +1569,13 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
 .journey-privacy h2 { margin: 0 0 4px; color: var(--ink); font-size: 17px; }
 .journey-privacy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .journey-actions { margin-top: 24px; }
-@keyframes journey-float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-5px) rotate(2deg); } }
+.route-loading { display: grid; min-height: 65svh; place-items: center; padding: 24px; }
+.route-loading-content { display: grid; justify-items: center; gap: 13px; color: var(--muted); text-align: center; }
+.route-loading-content .eyebrow { margin: 0; color: var(--green); font-size: 12px; font-weight: 800; letter-spacing: .16em; }
+.route-loading-content [role="status"] { margin: 0; font-size: 14px; font-weight: 650; }
+.route-loading-indicator { width: 24px; height: 24px; border: 3px solid #dcebe0; border-top-color: var(--green); border-radius: 50%; animation: route-loading-spin .8s linear infinite; }
+@keyframes route-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .route-loading-indicator { animation: none; border-right-color: var(--green); } }
 @media (max-width: 800px) {
   .journey-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   .journey-step { min-height: 220px; padding: 19px; }
@@ -1621,7 +1592,4 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-body
   .journey-privacy { grid-template-columns: 38px 1fr; gap: 10px; margin-top: 16px; padding: 16px; }
   .journey-privacy h2 { font-size: 15px; }
   .journey-privacy p { font-size: 12px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .journey-step-icon { animation: none; }
 }

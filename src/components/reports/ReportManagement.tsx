@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useRef, useState, type FormEvent } from "react";
 import { ITEM_CATEGORIES, LOST_ITEM_CATEGORIES } from "@/lib/items/categories";
 
 type ReportFields = {
@@ -29,27 +30,37 @@ export function ReportEditForm({ id, type, report }: { id: string; type: "LOST" 
   const [category, setCategory] = useState(report.category);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const saveInFlight = useRef(false);
   const categories = type === "LOST" ? LOST_ITEM_CATEGORIES : ITEM_CATEGORIES;
   const isOtherLostItem = type === "LOST" && category === "Other";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saveInFlight.current) return;
+    saveInFlight.current = true;
     setSaving(true); setMessage("");
-    const data: Record<string, FormDataEntryValue | null> = Object.fromEntries(new FormData(event.currentTarget).entries());
-    if (data.occurredAt) data.occurredAt = new Date(String(data.occurredAt)).toISOString();
-    if (type === "LOST") {
-      data.approximateTime = data.occurredAtApproximate ? "Approximate" : null;
-      data.subcategory = data.category === "Other" ? data.subcategory || null : null;
-      delete data.occurredAtApproximate;
-    }
-    for (const key of ["subcategory", "brand", "color", "privateDetails", "locationDetails"]) if (!data[key]) data[key] = null;
     try {
+      const data: Record<string, FormDataEntryValue | null> = Object.fromEntries(new FormData(event.currentTarget).entries());
+      if (data.occurredAt) {
+        const occurredAt = new Date(String(data.occurredAt));
+        if (Number.isNaN(occurredAt.getTime())) {
+          setMessage("Choose a valid date and time for this report.");
+          return;
+        }
+        data.occurredAt = occurredAt.toISOString();
+      }
+      if (type === "LOST") {
+        data.approximateTime = data.occurredAtApproximate ? "Approximate" : null;
+        data.subcategory = data.category === "Other" ? data.subcategory || null : null;
+        delete data.occurredAtApproximate;
+      }
+      for (const key of ["subcategory", "brand", "color", "privateDetails", "locationDetails"]) if (!data[key]) data[key] = null;
       const response = await fetch(`/api/items/${encodeURIComponent(id)}?type=${type}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       const result = await response.json();
       if (!response.ok) { setMessage(result.message ?? "Could not save those changes."); return; }
-      router.push("/dashboard"); router.refresh();
+      router.push("/dashboard");
     } catch { setMessage("We could not reach REVOK. Please try again."); }
-    finally { setSaving(false); }
+    finally { saveInFlight.current = false; setSaving(false); }
   }
 
   return <form className={`report-form report-form-edit report-form-${type.toLowerCase()}`} onSubmit={submit}>
@@ -74,14 +85,17 @@ export function ReportActions({ id, type, status, locked = false }: { id: string
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const requestInFlight = useRef(false);
   async function request(method: "PATCH" | "DELETE", body?: object) {
+    if (requestInFlight.current || locked) return;
+    requestInFlight.current = true;
     setBusy(true); setMessage("");
     try {
       const response = await fetch(`/api/items/${encodeURIComponent(id)}?type=${type}`, { method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
       const result = await response.json(); if (!response.ok) { setMessage(result.message ?? "That action could not be completed."); return; }
       router.refresh();
     } catch { setMessage("We could not reach REVOK. Please try again."); }
-    finally { setBusy(false); }
+    finally { requestInFlight.current = false; setBusy(false); }
   }
-  return <div className="report-actions"><a aria-disabled={locked} className={`button button-outline ${locked ? "is-disabled" : ""}`} href={locked ? undefined : `/dashboard/reports/${type.toLowerCase()}/${id}/edit`}>Edit</a><button className="button button-outline" disabled={busy || locked} onClick={() => void request("PATCH", { status: status === "CLOSED" ? "ACTIVE" : "CLOSED" })}>{status === "CLOSED" ? "Reopen" : "Mark resolved"}</button><button className="button button-danger" disabled={busy || locked} onClick={() => { if (window.confirm("Remove this report from your active history? It will be retained for moderation records.")) void request("DELETE"); }}>Delete</button>{message && <small role="status">{message}</small>}</div>;
+  return <div className="report-actions">{locked ? <span aria-disabled="true" className="button button-outline is-disabled">Edit</span> : <Link className="button button-outline" href={`/dashboard/reports/${type.toLowerCase()}/${id}/edit`}>Edit</Link>}<button className="button button-outline" disabled={busy || locked} onClick={() => void request("PATCH", { status: status === "CLOSED" ? "ACTIVE" : "CLOSED" })}>{status === "CLOSED" ? "Reopen" : "Mark resolved"}</button><button className="button button-danger" disabled={busy || locked} onClick={() => { if (window.confirm("Remove this report from your active history? It will be retained for moderation records.")) void request("DELETE"); }}>Delete</button>{message && <small role="status">{message}</small>}</div>;
 }

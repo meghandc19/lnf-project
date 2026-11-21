@@ -26,34 +26,51 @@ export default function FriendManager({ canEdit }: { canEdit: boolean }) {
   const [busyId, setBusyId] = useState("");
   const [openSearch, setOpenSearch] = useState(false);
   const timer = useRef<number | null>(null);
+  const searchController = useRef<AbortController | null>(null);
 
   async function loadFriends() {
     try {
       const response = await fetch("/api/account/friends", { cache: "no-store" });
-      if (!response.ok) return;
       const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.message ?? "Your Friends section could not be loaded.");
+        return;
+      }
       setFriends(data.friends ?? []); setIncoming(data.incoming ?? []); setOutgoing(data.outgoing ?? []);
     } catch { setMessage("Your Friends section could not be loaded."); }
   }
 
   useEffect(() => {
     const initial = window.setTimeout(() => void loadFriends(), 0);
-    return () => { window.clearTimeout(initial); if (timer.current) window.clearTimeout(timer.current); };
+    return () => {
+      window.clearTimeout(initial);
+      if (timer.current) window.clearTimeout(timer.current);
+      searchController.current?.abort();
+    };
   }, []);
 
   function searchUsers(value: string) {
     setQuery(value); setMessage("");
     if (timer.current) window.clearTimeout(timer.current);
-    if (value.trim().length < 2) { setResults([]); return; }
+    searchController.current?.abort();
+    const candidate = value.trim();
+    if (candidate.length < 2) { setResults([]); setLoading(false); return; }
+    const controller = new AbortController();
+    searchController.current = controller;
+    setResults([]);
+    setLoading(true);
     timer.current = window.setTimeout(async () => {
-      setLoading(true);
       try {
-        const response = await fetch(`/api/account/friends/search?q=${encodeURIComponent(value.trim())}`, { cache: "no-store" });
+        const response = await fetch(`/api/account/friends/search?q=${encodeURIComponent(candidate)}`, { cache: "no-store", signal: controller.signal });
         const data = await response.json();
+        if (controller.signal.aborted) return;
         if (response.ok) setResults(data.users ?? []);
         else setMessage(data.message ?? "Could not search users.");
-      } catch { setMessage("Could not reach REVOK. Please try again."); }
-      finally { setLoading(false); }
+      } catch {
+        if (!controller.signal.aborted) setMessage("Could not reach REVOK. Please try again.");
+      } finally {
+        if (searchController.current === controller) setLoading(false);
+      }
     }, 250);
   }
 

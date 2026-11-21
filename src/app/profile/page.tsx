@@ -13,12 +13,10 @@ export default async function ProfilePage() {
   } catch {
     redirect("/login?callbackURL=/profile");
   }
-  const inventory = await prisma.inventoryItem.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, brand: true, color: true } });
-
-  const googleAccount = await prisma.account.findFirst({
-    where: { userId: user.id, providerId: "google" },
-    select: { id: true, accountId: true },
-  });
+  const [inventory, googleAccount] = await Promise.all([
+    prisma.inventoryItem.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, brand: true, color: true } }),
+    prisma.account.findFirst({ where: { userId: user.id, providerId: "google" }, select: { id: true } }),
+  ]);
 
   return (
     <div className="site-page">

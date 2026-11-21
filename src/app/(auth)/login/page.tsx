@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -32,6 +32,7 @@ export default function LoginPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const authAttemptRef = useRef(false);
 
   function changeMethod(nextMethod: LoginMethod) {
     setMethod(nextMethod);
@@ -41,23 +42,26 @@ export default function LoginPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (authAttemptRef.current) return;
+    authAttemptRef.current = true;
     setMessage("");
     setLoading(true);
 
     const callbacks = {
       onSuccess: () => {
         router.push(returnPath());
-        router.refresh();
       },
       onError: () => {
         setMessage("Sign-in unsuccessful. Check your details or try again.");
         setLoading(false);
+        authAttemptRef.current = false;
       },
     };
 
     if (password.length < 4 || password.length > 8) {
       setMessage("Password must be between 4 and 8 characters.");
       setLoading(false);
+      authAttemptRef.current = false;
       return;
     }
 
@@ -86,24 +90,30 @@ export default function LoginPage() {
     } catch {
       setMessage("Sign-in is temporarily unavailable. Please try again.");
       setLoading(false);
+      authAttemptRef.current = false;
     }
   }
 
   async function handleGoogleLogin() {
+    if (authAttemptRef.current) return;
+    authAttemptRef.current = true;
     setMessage("");
     setGoogleLoading(true);
     try {
       const result = await authClient.signIn.social({
         provider: "google",
         callbackURL: returnPath(),
+        fetchOptions: { timeout: 20000 },
       });
-      if (result.error) {
+      if (result.error || !result.data?.url || !result.data.redirect) {
         setMessage("Google sign-in is temporarily unavailable. Please try again.");
         setGoogleLoading(false);
+        authAttemptRef.current = false;
       }
     } catch {
       setMessage("Google sign-in is temporarily unavailable. Please try again.");
       setGoogleLoading(false);
+      authAttemptRef.current = false;
     }
   }
 

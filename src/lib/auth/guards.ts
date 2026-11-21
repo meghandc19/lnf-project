@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { cache } from "react";
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -7,7 +8,7 @@ import {
   phoneVerificationRequired,
 } from "@/lib/api/errors";
 
-export async function getAuthenticatedUser() {
+export const getAuthenticatedUser = cache(async function getAuthenticatedUser() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -23,7 +24,7 @@ export async function getAuthenticatedUser() {
   });
 
   return user;
-}
+});
 
 export async function requireLogin() {
   const user = await getAuthenticatedUser();

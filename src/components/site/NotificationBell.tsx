@@ -28,22 +28,34 @@ function destination(notice: Notice) {
 export default function NotificationBell() {
   const router = useRouter();
   const root = useRef<HTMLDivElement>(null);
+  const loadInFlightRef = useRef(false);
+  const readingIdsRef = useRef(new Set<string>());
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notice[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState("");
 
   const load = useCallback(async () => {
+    if (loadInFlightRef.current || document.visibilityState !== "visible") return;
+    loadInFlightRef.current = true;
     try {
       const response = await fetch("/api/notifications", { cache: "no-store" });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error("Notifications could not be loaded.");
       const result = await response.json();
       setItems(result.notifications ?? []); setUnreadCount(result.unreadCount ?? 0); setError("");
     } catch { setError("Notifications could not be loaded."); }
+    finally { loadInFlightRef.current = false; setInitialLoading(false); }
   }, []);
 
-  useEffect(() => { const initial = window.setTimeout(() => void load(), 0); const interval = window.setInterval(() => void load(), 30000); return () => { window.clearTimeout(initial); window.clearInterval(interval); }; }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => void load(), 1000);
+    const interval = window.setInterval(() => void load(), 60000);
+    function refreshWhenVisible() { if (document.visibilityState === "visible") void load(); }
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => { window.clearTimeout(initial); window.clearInterval(interval); document.removeEventListener("visibilitychange", refreshWhenVisible); };
+  }, [load]);
   useEffect(() => {
     if (!open) return;
     function dismiss(event: PointerEvent) { if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false); }
@@ -52,13 +64,18 @@ export default function NotificationBell() {
     return () => { document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", escape); };
   }, [open]);
 
-  async function openNotice(notice: Notice) {
+  function openNotice(notice: Notice) {
     setOpen(false);
-    if (!notice.readAt) {
-      try {
-        const response = await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: notice.id }) });
-        if (response.ok) { setItems((current) => current.map((entry) => entry.id === notice.id ? { ...entry, readAt: new Date().toISOString() } : entry)); setUnreadCount((count) => Math.max(0, count - 1)); }
-      } catch { /* Still open the destination if read state cannot be updated. */ }
+    if (!notice.readAt && !readingIdsRef.current.has(notice.id)) {
+      readingIdsRef.current.add(notice.id);
+      void fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: notice.id }) })
+        .then((response) => {
+          if (!response.ok) throw new Error("This notification could not be marked as read.");
+          setItems((current) => current.map((entry) => entry.id === notice.id ? { ...entry, readAt: new Date().toISOString() } : entry));
+          setUnreadCount((count) => Math.max(0, count - 1));
+        })
+        .catch(() => setError("This notification could not be marked as read. It will remain unread."))
+        .finally(() => readingIdsRef.current.delete(notice.id));
     }
     router.push(destination(notice));
   }
@@ -76,13 +93,13 @@ export default function NotificationBell() {
   }
 
   return <div className="notification-menu" ref={root}>
-    <button className="notification-toggle" type="button" aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"} aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((value) => !value)}>
+    <button className="notification-toggle" type="button" aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"} aria-expanded={open} aria-haspopup="dialog" onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) void load(); }}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
       {unreadCount > 0 && <span className="notification-count">{unreadCount > 99 ? "99+" : unreadCount}</span>}
     </button>
     {open && <section className="notification-popover" role="dialog" aria-label="Recent notifications">
       <div className="notification-popover-heading"><strong>Notifications</strong><span>{unreadCount ? `${unreadCount} unread` : "All caught up"}</span></div>
-      {error && <p className="notification-empty" role="status">{error}</p>}{items.length ? <ul className="notification-list">{items.map((notice) => <li className={`notification-entry-row${notice.type === "FRIEND_REPORT" ? " notification-entry-priority" : ""}${notice.readAt ? "" : " is-unread"}`} key={notice.id}>
+      {error && <p className="notification-empty" role="status">{error}</p>}{initialLoading && !items.length ? <p className="notification-empty" role="status">Loading notifications…</p> : items.length ? <ul className="notification-list">{items.map((notice) => <li className={`notification-entry-row${notice.type === "FRIEND_REPORT" ? " notification-entry-priority" : ""}${notice.readAt ? "" : " is-unread"}`} key={notice.id}>
         <button type="button" className={`notification-entry${notice.readAt ? "" : " is-unread"}`} onClick={() => void openNotice(notice)}>
           <span className="notification-entry-mark" aria-hidden="true">{notice.type === "MATCH" ? "✳" : notice.type === "MESSAGE" ? "↗" : "•"}</span>
           <span className="notification-entry-copy"><strong>{notice.title}</strong><span>{notice.message}</span><small>{new Date(notice.createdAt).toLocaleString()}</small></span>

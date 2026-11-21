@@ -16,13 +16,7 @@ export default function HomeIllustration() {
         <circle cx="344" cy="275" r="210" fill="none" stroke="#e7f4ea" strokeWidth="1" strokeDasharray="2 9" />
 
         <use href="#home-flight-path" className="home-flight-trail" fill="none" stroke="#83bd96" strokeWidth="2" strokeDasharray="5 9" strokeLinecap="round" />
-        <g className="home-plane-motion">
-          <path d="M-18-10 20 0-10 16-5 3Z" fill="url(#home-plane)" stroke="#087844" strokeWidth="2" strokeLinejoin="round" />
-          <path d="m-5 3 25-3-30 16Z" fill="#21b96a" stroke="#087844" strokeWidth="1.5" strokeLinejoin="round" />
-          <animateMotion dur="19s" repeatCount="indefinite" rotate="auto" keyPoints="0;1;1" keyTimes="0;.88;1" calcMode="linear"><mpath href="#home-flight-path" /></animateMotion>
-          <animate attributeName="opacity" dur="19s" repeatCount="indefinite" values="0;1;1;0" keyTimes="0;.06;.86;1" />
-        </g>
-        <g className="home-plane-still" transform="translate(65 112) rotate(-12)">
+        <g transform="translate(65 112) rotate(-12)">
           <path d="M-18-10 20 0-10 16-5 3Z" fill="url(#home-plane)" stroke="#087844" strokeWidth="2" strokeLinejoin="round" />
           <path d="m-5 3 25-3-30 16Z" fill="#21b96a" stroke="#087844" strokeWidth="1.5" strokeLinejoin="round" />
         </g>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import ClaimStatusBadge from "@/components/claims/ClaimStatusBadge";
 import styles from "./ClaimConversation.module.css";
 
@@ -20,6 +20,7 @@ export default function ClaimConversation({ claimId, viewerId }: { claimId: stri
   const [code, setCode] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const [ownReport, setOwnReport] = useState<OwnReport | null>(null);
+  const pollInFlight = useRef(false);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/claims/${claimId}/messages`, { cache: "no-store" });
@@ -35,7 +36,23 @@ export default function ClaimConversation({ claimId, viewerId }: { claimId: stri
     const reportResponse = await fetch(`/api/claims/${claimId}/reports`, { cache: "no-store" });
     if (reportResponse.ok) { const reportData = await reportResponse.json(); setOwnReport(reportData.report ?? null); }
   }, [claimId]);
-  useEffect(() => { const initial = window.setTimeout(() => { void load().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to load this conversation.")); }, 0); const timer = window.setInterval(() => { void load().catch(() => undefined); }, 6000); return () => { window.clearTimeout(initial); window.clearInterval(timer); }; }, [load]);
+  useEffect(() => {
+    function refreshVisibleConversation() {
+      if (document.visibilityState !== "visible" || pollInFlight.current) return;
+      pollInFlight.current = true;
+      void load()
+        .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to refresh this conversation."))
+        .finally(() => { pollInFlight.current = false; });
+    }
+    const initial = window.setTimeout(refreshVisibleConversation, 0);
+    const timer = window.setInterval(refreshVisibleConversation, 6000);
+    document.addEventListener("visibilitychange", refreshVisibleConversation);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshVisibleConversation);
+    };
+  }, [load]);
 
   async function send(event: FormEvent) {
     event.preventDefault(); if (busy || !text.trim()) return; setBusy(true); setError("");

@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { authClient } from "@/lib/auth/auth-client";
+import { authClient } from "@/lib/auth-client";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 import InventoryManager, { type InventoryEntry } from "@/components/profile/InventoryManager";
 import FriendManager from "@/components/profile/FriendManager";

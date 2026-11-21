@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth/auth-client";
+import { authClient } from "@/lib/auth-client";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { indianPhoneSchema, normalizeIndianPhone, usernameSchema } from "@/lib/validation/common";
 import styles from "../AuthPages.module.css";
@@ -66,6 +66,7 @@ export default function RegisterPage() {
     "idle" | "checking" | "available" | "taken" | "invalid" | "error"
   >("idle");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const googleAttemptRef = useRef(false);
 
   useEffect(() => {
     const widgetId = process.env.NEXT_PUBLIC_MSG91_WIDGET_ID || "366b67695879383238353332";
@@ -151,13 +152,21 @@ export default function RegisterPage() {
   }, [step, username]);
 
   async function signUpWithGoogle() {
+    if (googleAttemptRef.current) return;
+    googleAttemptRef.current = true;
     setMessage("");
     setGoogleLoading(true);
     try {
-      await authClient.signIn.social({ provider: "google", callbackURL: "/register/complete" });
+      const result = await authClient.signIn.social({ provider: "google", callbackURL: "/register/complete", fetchOptions: { timeout: 20000 } });
+      if (result.error || !result.data?.url || !result.data.redirect) {
+        setMessage("Google sign-up is temporarily unavailable. Please try again.");
+        setGoogleLoading(false);
+        googleAttemptRef.current = false;
+      }
     } catch {
       setMessage("Google sign-up is temporarily unavailable. Please try again.");
       setGoogleLoading(false);
+      googleAttemptRef.current = false;
     }
   }
 
@@ -326,7 +335,6 @@ export default function RegisterPage() {
         {
           onSuccess: () => {
             router.push("/");
-            router.refresh();
           },
           onError: () => {
             router.push("/login");

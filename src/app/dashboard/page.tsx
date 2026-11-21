@@ -17,14 +17,20 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   const view = (await searchParams)?.view;
   const showKind = view === "lost" || view === "found" ? view.toUpperCase() : null;
   const participant = { is: { participants: { some: { userId: user.id, deletedAt: null } } } };
-  const [lostCount, foundCount, sentClaims, receivedClaims, lostRows, foundRows, sentHints] = await Promise.all([
+  const [lostCount, foundCount, sentClaims, receivedClaims, sentHints] = await Promise.all([
     prisma.lostItem.count({ where: { userId: user.id, deletedAt: null } }),
     prisma.foundItem.count({ where: { userId: user.id, deletedAt: null } }),
     prisma.claim.count({ where: { userId: user.id, foundItemId: { not: null }, foundItem: { userId: { not: user.id } }, conversation: participant } }),
     prisma.claim.count({ where: { foundItem: { userId: user.id }, userId: { not: user.id }, conversation: participant } }),
-    prisma.lostItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { updatedAt: "desc" }, include: { images: true, category: true, _count: { select: { reportMessages: { where: { parentMessageId: null } } } } } }),
-    prisma.foundItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { updatedAt: "desc" }, include: { images: true, category: true, _count: { select: { reportMessages: { where: { parentMessageId: null } } } }, claims: { where: { status: { in: ["PENDING", "APPROVED"] } }, select: { id: true } } } }),
     prisma.reportMessage.findMany({ where: { senderId: user.id, parentMessageId: null, kind: "HINT" }, orderBy: { createdAt: "desc" }, take: 50, include: { sender: { select: { name: true } }, replies: { orderBy: { createdAt: "asc" }, take: 100, include: { sender: { select: { name: true } } } }, lostItem: { select: { id: true, title: true, deletedAt: true } }, foundItem: { select: { id: true, title: true, deletedAt: true } } } }),
+  ]);
+  const [lostRows, foundRows] = await Promise.all([
+    showKind === "LOST"
+      ? prisma.lostItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { updatedAt: "desc" }, include: { images: true, category: true, _count: { select: { reportMessages: { where: { parentMessageId: null } } } } } })
+      : Promise.resolve([]),
+    showKind === "FOUND"
+      ? prisma.foundItem.findMany({ where: { userId: user.id, deletedAt: null }, orderBy: { updatedAt: "desc" }, include: { images: true, category: true, _count: { select: { reportMessages: { where: { parentMessageId: null } } } }, claims: { where: { status: { in: ["PENDING", "APPROVED"] } }, select: { id: true } } } })
+      : Promise.resolve([]),
   ]);
   type Report = { id: string; type: "LOST" | "FOUND"; title: string; category: { name: string }; location: string; images: { url: string }[]; occurredAt: Date; updatedAt: Date; status: string; moderation: string; communicationCount: number };
   const reports: Report[] = [
