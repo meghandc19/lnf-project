@@ -12,7 +12,7 @@ const phoneRegistrationSchema = z.object({
   accessToken: z.string().min(10),
   name: z.string().trim().min(2).max(100),
   username: usernameSchema,
-  password: z.string().min(4).max(8),
+  password: z.string().min(8).max(128),
 });
 
 export async function POST(request: Request) {

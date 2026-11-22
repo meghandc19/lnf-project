@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser } from "@/lib/auth/guards";
+import { requireActiveUser, requirePhoneVerified } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 
@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cla
 export async function DELETE(request: Request, { params }: { params: Promise<{ claimId: string }> }) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const { claimId } = await params;
     const claim = await prisma.claim.findFirst({ where: { id: claimId, OR: [{ userId: user.id }, { foundItem: { OR: [{ userId: user.id }, { custodianId: user.id }] } }] }, select: { id: true, conversation: { select: { participants: { where: { userId: user.id, deletedAt: null }, select: { id: true } } } }, foundItem: { select: { custodianId: true } } } });
     if (!claim || (!claim.conversation?.participants.length && claim.foundItem?.custodianId !== user.id)) return Response.json({ message: "Claim conversation not found." }, { status: 404 });
@@ -34,7 +34,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ c
 export async function POST(request: Request, { params }: { params: Promise<{ claimId: string }> }) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success) return Response.json({ message: "Choose a reason and describe what happened in at least 20 characters." }, { status: 400 });
     const { claimId } = await params;

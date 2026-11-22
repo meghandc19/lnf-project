@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { indianPhoneSchema, normalizeIndianPhone } from "./common.ts";
+import { indianPhoneSchema, normalizeIndianPhone, usernameSchema } from "./common.ts";
+
+test("new usernames require 4-8 allowed characters", () => {
+  for (const username of ["abcd", "A_@9", "12345678"]) {
+    assert.equal(usernameSchema.safeParse(username).success, true, username);
+  }
+  for (const username of ["abc", "123456789", "not-valid"]) {
+    assert.equal(usernameSchema.safeParse(username).success, false, username);
+  }
+});
 
 test("accepts Indian phone input used by the phone signup UI", () => {
   for (const phone of ["9482345523", "94823 45523", "+91 94823 45523", "919482345523"]) {

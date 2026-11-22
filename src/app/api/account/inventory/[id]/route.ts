@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser } from "@/lib/auth/guards";
+import { requirePhoneVerified } from "@/lib/auth/guards";
 import { normalizeSearchText } from "@/lib/items/matching";
 import { inventoryItemSchema } from "@/lib/profile/inventory-validation";
 import { prisma } from "@/lib/prisma";
@@ -12,7 +12,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This inventory request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const limit = checkRateLimit(hashRateLimitKey("account-inventory", user.id), 40, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
     const parsed = inventoryItemSchema.safeParse(await request.json());
@@ -38,7 +38,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(request: Request, { params }: RouteContext) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This inventory request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const limit = checkRateLimit(hashRateLimitKey("account-inventory", user.id), 40, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
     const { id } = await params;

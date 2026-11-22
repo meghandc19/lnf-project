@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import GooglePhoneVerification from "@/components/auth/GooglePhoneVerification";
 import { usernameSchema } from "@/lib/validation/common";
@@ -54,7 +55,7 @@ export default function GoogleAccountSetup({
     event.preventDefault();
     const parsed = usernameSchema.safeParse(username.trim());
     if (!parsed.success) {
-      setAvailability("Use 3–8 letters, numbers, underscores, or @.");
+      setAvailability("Use 4–8 letters, numbers, underscores, or @.");
       setAvailabilityState("invalid");
       return;
     }
@@ -92,7 +93,7 @@ export default function GoogleAccountSetup({
       setAvailability("");
       setAvailabilityState("idle");
     } else if (!usernameSchema.safeParse(candidate).success) {
-      setAvailability("Use 3–8 letters, numbers, underscores, or @.");
+      setAvailability("Use 4–8 letters, numbers, underscores, or @.");
       setAvailabilityState("invalid");
     } else {
       setAvailability("Checking availability...");
@@ -105,7 +106,7 @@ export default function GoogleAccountSetup({
       <form className="auth-form" onSubmit={saveUsername}>
         <p className="auth-step"><strong>Step 1 of 2</strong> · Choose a username</p>
         <label className="auth-field" htmlFor="google-signup-username">Username
-          <input id="google-signup-username" type="text" autoComplete="username" minLength={3} maxLength={8} value={username} onChange={(event) => updateUsername(event.target.value)} placeholder="Choose a username" required />
+          <input id="google-signup-username" type="text" autoComplete="username" minLength={4} maxLength={8} value={username} onChange={(event) => updateUsername(event.target.value)} placeholder="Choose a username" required />
         </label>
         <p className="auth-help">Your username is permanent after you save it.</p>
         {availability && <p className={`username-availability username-${availabilityState}`} role="status">{availability}</p>}
@@ -118,5 +119,5 @@ export default function GoogleAccountSetup({
     return <div className="auth-form"><p className="auth-help">Your account is set up as <strong>@{username}</strong>.</p><button className="auth-submit" type="button" onClick={() => router.replace("/")}>Continue to REVOK</button></div>;
   }
 
-  return <div className="auth-form"><p className="auth-step"><strong>Step 2 of 2</strong> · Verify your phone</p><p className="auth-help">Permanent username: <strong>@{username}</strong></p><GooglePhoneVerification initialPhone={initialPhone} /></div>;
+  return <div className="auth-form"><p className="auth-step"><strong>Phone verification</strong></p><p className="auth-help">Permanent username: <strong>@{username}</strong>. Verify your phone when you&apos;re ready to report, claim, or message.</p><GooglePhoneVerification initialPhone={initialPhone} /><Link className="button button-outline" href="/">Not now — continue browsing</Link></div>;
 }

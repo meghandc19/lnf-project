@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser } from "@/lib/auth/guards";
+import { requireActiveUser, requirePhoneVerified } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
@@ -33,7 +33,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cla
 export async function POST(request: Request, { params }: { params: Promise<{ claimId: string }> }) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const limit = checkRateLimit(hashRateLimitKey("claim-message", user.id), 60, 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
     const body = messageSchema.safeParse(await request.json());

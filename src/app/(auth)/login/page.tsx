@@ -9,8 +9,6 @@ import { PasswordInput } from "@/components/auth/PasswordInput";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 import styles from "../AuthPages.module.css";
 
-type LoginMethod = "username" | "phone";
-
 function returnPath() {
   const requested = new URL(window.location.href).searchParams.get("callbackURL");
   if (!requested) return "/auth/continue";
@@ -26,19 +24,12 @@ function returnPath() {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [method, setMethod] = useState<LoginMethod>("username");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const authAttemptRef = useRef(false);
-
-  function changeMethod(nextMethod: LoginMethod) {
-    setMethod(nextMethod);
-    setIdentifier("");
-    setMessage("");
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,32 +49,31 @@ export default function LoginPage() {
       },
     };
 
-    if (password.length < 4 || password.length > 8) {
-      setMessage("Password must be between 4 and 8 characters.");
+    if (!password || password.length > 128) {
+      setMessage("Enter your password (up to 128 characters).");
       setLoading(false);
       authAttemptRef.current = false;
       return;
     }
 
     try {
-      if (method === "username") {
-        await authClient.signIn.username({
-          username: identifier.trim(),
+      if (indianPhoneSchema.safeParse(identifier).success) {
+        await authClient.signIn.phoneNumber({
+          phoneNumber: normalizeIndianPhone(identifier),
           password,
           rememberMe: true,
         }, callbacks);
         return;
       }
-
-      const validation = indianPhoneSchema.safeParse(identifier);
-      if (!validation.success) {
-        setMessage("Enter a valid 10-digit Indian mobile number.");
+      const usernameValue = identifier.trim();
+      if (!/^[a-zA-Z0-9_@]{3,8}$/.test(usernameValue)) {
+        setMessage("Enter your username or a valid Indian phone number.");
         setLoading(false);
+        authAttemptRef.current = false;
         return;
       }
-
-      await authClient.signIn.phoneNumber({
-        phoneNumber: normalizeIndianPhone(identifier),
+      await authClient.signIn.username({
+        username: usernameValue,
         password,
         rememberMe: true,
       }, callbacks);
@@ -133,21 +123,16 @@ export default function LoginPage() {
         <div className="auth-card">
           <p className="eyebrow">Your account</p>
           <h2 id="login-heading">Log in</h2>
-          <p className="auth-card-intro">Use your username or verified phone number.</p>
-
-          <div className="auth-methods" aria-label="Choose sign-in method">
-            <button type="button" aria-pressed={method === "username"} onClick={() => changeMethod("username")}>Username</button>
-            <button type="button" aria-pressed={method === "phone"} onClick={() => changeMethod("phone")}>Phone</button>
-          </div>
+          <p className="auth-card-intro">Use your username or verified phone number and password.</p>
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <label className="auth-field">
-              {method === "username" ? "Username" : "Phone number"}
               <input
-                type={method === "phone" ? "tel" : "text"}
-                inputMode={method === "phone" ? "tel" : "text"}
-                autoComplete={method === "phone" ? "tel" : "username"}
-                placeholder={method === "phone" ? "+91 98765 43210" : "Your username"}
+                type="text"
+                inputMode="text"
+                autoComplete="username"
+                aria-label="Username or phone number"
+                placeholder="Username or phone number"
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
                 required
@@ -157,11 +142,10 @@ export default function LoginPage() {
               Password
               <PasswordInput
                 autoComplete="current-password"
-                placeholder="4 to 8 characters"
+                placeholder="Your password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                minLength={4}
-                maxLength={8}
+                maxLength={128}
                 required
               />
             </label>

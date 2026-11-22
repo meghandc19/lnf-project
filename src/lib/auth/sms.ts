@@ -13,10 +13,10 @@ export function getOtpProviderConfig() {
   const templateId = process.env.MSG91_OTP_TEMPLATE_ID?.trim() ?? "";
   const rawOtpLength = Number(process.env.MSG91_OTP_LENGTH ?? DEFAULT_OTP_LENGTH);
   const rawOtpExpiryMinutes = Number(process.env.MSG91_OTP_EXPIRY_MINUTES ?? DEFAULT_OTP_EXPIRY_MINUTES);
-  const otpLength = Number.isInteger(rawOtpLength) ? rawOtpLength : DEFAULT_OTP_LENGTH;
+  const otpLength = DEFAULT_OTP_LENGTH;
   const otpExpiryMinutes = Number.isInteger(rawOtpExpiryMinutes) && rawOtpExpiryMinutes >= 1 && rawOtpExpiryMinutes <= 10080 ? rawOtpExpiryMinutes : DEFAULT_OTP_EXPIRY_MINUTES;
   const enabled = process.env.MSG91_ENABLED === "true";
-  const valid = Boolean(authKey && templateId && (rawOtpLength === 4 || rawOtpLength === 6) && rawOtpExpiryMinutes === otpExpiryMinutes);
+  const valid = Boolean(authKey && templateId && rawOtpLength === DEFAULT_OTP_LENGTH && rawOtpExpiryMinutes === otpExpiryMinutes);
   return { configured: valid, enabled: enabled && valid, otpLength, otpExpiryMinutes };
 }
 
@@ -46,6 +46,7 @@ async function providerJson(response: Response): Promise<Record<string, unknown>
 
 export async function sendMsg91Otp({ phoneNumber, code }: OtpDeliveryInput) {
   const config = credentials();
+  if (!/^\d{4}$/.test(code)) throw new Error("Verification code must contain exactly 4 digits.");
   const url = new URL(MSG91_SEND_URL);
   url.searchParams.set("template_id", config.templateId);
   url.searchParams.set("mobile", msg91PhoneNumber(phoneNumber));
@@ -64,6 +65,7 @@ export async function sendMsg91Otp({ phoneNumber, code }: OtpDeliveryInput) {
 
 export async function verifyMsg91Otp({ phoneNumber, code }: OtpDeliveryInput) {
   const config = credentials();
+  if (!/^\d{4}$/.test(code)) return false;
   const url = new URL(MSG91_VERIFY_URL);
   url.searchParams.set("mobile", msg91PhoneNumber(phoneNumber));
   url.searchParams.set("otp", code);

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser, requireCanBrowse } from "@/lib/auth/guards";
+import { requireCanBrowse, requirePhoneVerified } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
@@ -63,7 +63,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ type
 export async function POST(request: Request, { params }: { params: Promise<{ type: string; id: string }> }) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This private message is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const { type, id } = await params;
     if (type !== "lost" && type !== "found") return Response.json({ message: "Report not found." }, { status: 404 });
     const limit = checkRateLimit(hashRateLimitKey("report-message", user.id, id), 12, 60 * 60 * 1000);

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser } from "@/lib/auth/guards";
+import { requirePhoneVerified } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { encryptRecoveryCode, hashRecoveryCode } from "@/lib/claims/recovery-code";
@@ -12,7 +12,7 @@ const actionSchema = z.object({ action: z.enum(["approve", "decline", "withdraw"
 export async function PATCH(request: Request, { params }: { params: Promise<{ claimId: string }> }) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const parsed = actionSchema.safeParse(await request.json());
     if (!parsed.success) return Response.json({ message: "Choose a valid claim action." }, { status: 400 });
     const { claimId } = await params;

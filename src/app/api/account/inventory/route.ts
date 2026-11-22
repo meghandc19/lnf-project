@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser } from "@/lib/auth/guards";
+import { requirePhoneVerified } from "@/lib/auth/guards";
 import { inventoryItemSchema } from "@/lib/profile/inventory-validation";
 import { normalizeSearchText } from "@/lib/items/matching";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +10,7 @@ import { isSameOriginRequest } from "@/lib/security/same-origin";
 export async function POST(request: Request) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This inventory request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const limit = checkRateLimit(hashRateLimitKey("account-inventory", user.id), 40, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
     const parsed = inventoryItemSchema.safeParse(await request.json());

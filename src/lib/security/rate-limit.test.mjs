@@ -29,6 +29,20 @@ test("MSG91 remains disabled until explicitly enabled and fully configured", () 
   Object.entries(previous).forEach(([key, value]) => value === undefined ? delete process.env[key] : process.env[key] = value);
 });
 
+test("MSG91 rejects non-four-digit provider configuration", () => {
+  const keys = ["MSG91_ENABLED", "MSG91_AUTH_KEY", "MSG91_OTP_TEMPLATE_ID", "MSG91_OTP_LENGTH"];
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  process.env.MSG91_ENABLED = "true";
+  process.env.MSG91_AUTH_KEY = "server-secret-for-test";
+  process.env.MSG91_OTP_TEMPLATE_ID = "template-test";
+  process.env.MSG91_OTP_LENGTH = "6";
+  try {
+    assert.deepEqual(getOtpProviderConfig(), { configured: false, enabled: false, otpLength: 4, otpExpiryMinutes: 5 });
+  } finally {
+    Object.entries(previous).forEach(([key, value]) => value === undefined ? delete process.env[key] : process.env[key] = value);
+  }
+});
+
 test("MSG91 send and verify use server credentials and the normalized Indian number", async () => {
   const keys = ["MSG91_ENABLED", "MSG91_AUTH_KEY", "MSG91_OTP_TEMPLATE_ID", "MSG91_OTP_LENGTH", "MSG91_OTP_EXPIRY_MINUTES"];
   const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
@@ -36,7 +50,7 @@ test("MSG91 send and verify use server credentials and the normalized Indian num
   process.env.MSG91_ENABLED = "true";
   process.env.MSG91_AUTH_KEY = "server-secret-for-test";
   process.env.MSG91_OTP_TEMPLATE_ID = "template-test";
-  process.env.MSG91_OTP_LENGTH = "6";
+  process.env.MSG91_OTP_LENGTH = "4";
   process.env.MSG91_OTP_EXPIRY_MINUTES = "5";
   const requests = [];
   globalThis.fetch = async (input, init) => {
@@ -44,13 +58,13 @@ test("MSG91 send and verify use server credentials and the normalized Indian num
     return Response.json({ type: "success", request_id: "test" });
   };
   try {
-    await sendMsg91Otp({ phoneNumber: "+919876543210", code: "482931" });
+    await sendMsg91Otp({ phoneNumber: "+919876543210", code: "4829" });
     assert.equal(requests[0].url.searchParams.get("mobile"), "919876543210");
-    assert.equal(requests[0].url.searchParams.get("otp"), "482931");
+    assert.equal(requests[0].url.searchParams.get("otp"), "4829");
     assert.equal(requests[0].init.headers.authkey, "server-secret-for-test");
-    assert.equal(await verifyMsg91Otp({ phoneNumber: "9876543210", code: "482931" }), true);
+    assert.equal(await verifyMsg91Otp({ phoneNumber: "9876543210", code: "4829" }), true);
     globalThis.fetch = async () => Response.json({ type: "error", message: "invalid" });
-    assert.equal(await verifyMsg91Otp({ phoneNumber: "9876543210", code: "000000" }), false);
+    assert.equal(await verifyMsg91Otp({ phoneNumber: "9876543210", code: "0000" }), false);
   } finally {
     globalThis.fetch = originalFetch;
     Object.entries(previous).forEach(([key, value]) => value === undefined ? delete process.env[key] : process.env[key] = value);

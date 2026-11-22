@@ -126,8 +126,8 @@ export default function ForgotPasswordPage() {
     event.preventDefault();
     setMessage("");
 
-    if (newPassword.length < 4 || newPassword.length > 8) {
-      setMessage("Password must be between 4 and 8 characters.");
+    if (newPassword.length < 8 || newPassword.length > 128) {
+      setMessage("Password must be between 8 and 128 characters.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -193,7 +193,7 @@ export default function ForgotPasswordPage() {
           <p className="auth-card-intro">
             {step === "phone" && "Enter your registered Indian phone number."}
             {step === "otp" && `Enter the 4-digit code sent to ${phone}.`}
-            {step === "password" && "Choose a strong new password (minimum 8 characters)."}
+            {step === "password" && "Choose a new password between 8 and 128 characters."}
             {step === "success" && "Your password has been updated."}
           </p>
 
@@ -273,11 +273,11 @@ export default function ForgotPasswordPage() {
                 <PasswordInput
                   id="reset-new-password"
                   autoComplete="new-password"
-                  placeholder="4 to 8 characters"
+                  placeholder="8 to 128 characters"
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
-                  minLength={4}
-                  maxLength={8}
+                  minLength={8}
+                  maxLength={128}
                   required
                 />
               </label>
@@ -289,15 +289,15 @@ export default function ForgotPasswordPage() {
                   placeholder="Repeat new password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  minLength={4}
-                  maxLength={8}
+                  minLength={8}
+                  maxLength={128}
                   required
                 />
               </label>
               <button
                 className="auth-submit"
                 type="submit"
-                disabled={loading || newPassword.length < 4 || newPassword.length > 8 || newPassword !== confirmPassword}
+                disabled={loading || newPassword.length < 8 || newPassword.length > 128 || newPassword !== confirmPassword}
               >
                 {loading ? "Updating password..." : "Update password"}
               </button>

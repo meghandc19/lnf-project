@@ -98,8 +98,8 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
-    minPasswordLength: 4,
-    maxPasswordLength: 8,
+    minPasswordLength: 8,
+    maxPasswordLength: 128,
   },
 
   disabledPaths: [
@@ -160,6 +160,8 @@ export const auth = betterAuth({
 
   plugins: [
     username({
+      // Keep three-character legacy usernames sign-in compatible. New username
+      // creation is enforced at 4–8 by the shared account API schema.
       minUsernameLength: 3,
       maxUsernameLength: 8,
       immutableUsername: true,

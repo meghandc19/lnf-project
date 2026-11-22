@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser, requireLogin } from "@/lib/auth/guards";
+import { requireLogin, requirePhoneVerified } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 
@@ -26,7 +26,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const parsed = requestSchema.safeParse(await request.json());
     if (!parsed.success) return Response.json({ message: "Select a REVOK Steward." }, { status: 400 });
     const [item, steward] = await Promise.all([
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     if (user.role !== "REVOK_STEWARD") return Response.json({ message: "Steward access is required." }, { status: 403 });
     const parsed = actionSchema.safeParse(await request.json());
     if (!parsed.success) return Response.json({ message: "Choose accept or decline." }, { status: 400 });

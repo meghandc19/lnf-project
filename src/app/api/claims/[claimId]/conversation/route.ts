@@ -1,12 +1,12 @@
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser } from "@/lib/auth/guards";
+import { requirePhoneVerified } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ claimId: string }> }) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const { claimId } = await params;
     const claim = await prisma.claim.findFirst({ where: { id: claimId, conversationId: { not: null }, conversation: { is: { participants: { some: { userId: user.id, deletedAt: null } } } } }, select: { id: true, conversationId: true } });
     if (!claim?.conversationId) return Response.json({ message: "Conversation not found." }, { status: 404 });

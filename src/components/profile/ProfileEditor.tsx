@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { authClient } from "@/lib/auth-client";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 import InventoryManager, { type InventoryEntry } from "@/components/profile/InventoryManager";
 import FriendManager from "@/components/profile/FriendManager";
 
 type ProfileData = { name: string; username: string | null; about: string | null; image: string | null; phoneNumber: string | null; phoneNumberVerified: boolean };
 
-export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth = false }: { user: ProfileData; inventory: InventoryEntry[]; canEdit: boolean; hasGoogleAuth?: boolean }) {
+export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth = false, hasPassword = false }: { user: ProfileData; inventory: InventoryEntry[]; canEdit: boolean; hasGoogleAuth?: boolean; hasPassword?: boolean }) {
   const router = useRouter();
   const [name, setName] = useState(user.name);
   const [about, setAbout] = useState(user.about ?? "");
@@ -27,8 +28,34 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
   const [phoneStep, setPhoneStep] = useState<"phone" | "otp">("phone");
   const [phoneMessage, setPhoneMessage] = useState("");
   const [phoneLoading, setPhoneLoading] = useState(false);
+  const [phoneResendCooldown, setPhoneResendCooldown] = useState(0);
+  const [phoneResendCount, setPhoneResendCount] = useState(0);
+  const phoneTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [linkingGoogle, setLinkingGoogle] = useState(false);
   const [googleMessage, setGoogleMessage] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  useEffect(() => () => {
+    if (phoneTimerRef.current) clearInterval(phoneTimerRef.current);
+  }, []);
+
+  function startPhoneResendCooldown(seconds = 30) {
+    setPhoneResendCooldown(seconds);
+    if (phoneTimerRef.current) clearInterval(phoneTimerRef.current);
+    phoneTimerRef.current = setInterval(() => {
+      setPhoneResendCooldown((previous) => {
+        if (previous <= 1) {
+          if (phoneTimerRef.current) clearInterval(phoneTimerRef.current);
+          return 0;
+        }
+        return previous - 1;
+      });
+    }, 1000);
+  }
 
   async function handleLinkGoogle() {
     setLinkingGoogle(true);
@@ -122,6 +149,8 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
       setNewPhone(normalizedPhone);
       setPhoneStep("otp");
       setPhoneMessage(result.message ?? "Verification code sent.");
+      setPhoneResendCount(0);
+      startPhoneResendCooldown();
     } catch {
       setPhoneMessage("Could not send a verification code. Please try again.");
     } finally {
@@ -169,6 +198,8 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
       if (!response.ok) { setPhoneMessage(result.message ?? "Could not resend the code. Please try again later."); return; }
       setPhoneCode("");
       setPhoneMessage("A new verification code was sent.");
+      setPhoneResendCount((count) => count + 1);
+      startPhoneResendCooldown();
     } catch {
       setPhoneMessage("Could not resend the code. Please try again later.");
     } finally { setPhoneLoading(false); }
@@ -195,6 +226,49 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
       setMessage("Could not save your profile. Please try again.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function savePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordMessage("");
+    if (newPassword.length < 8 || newPassword.length > 128) {
+      setPasswordMessage("Use a password between 8 and 128 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage("Passwords do not match.");
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      if (hasPassword) {
+        const result = await authClient.changePassword({ currentPassword, newPassword, revokeOtherSessions: true });
+        if (result.error) {
+          setPasswordMessage(result.error.message ?? "Could not change your password. Check your current password and try again.");
+          return;
+        }
+      } else {
+        const response = await fetch("/api/account/password/set", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newPassword }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          setPasswordMessage(result.message ?? "Could not add a password to your account.");
+          return;
+        }
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordMessage(hasPassword ? "Your password has been changed." : "A password has been added to your account.");
+      router.refresh();
+    } catch {
+      setPasswordMessage("Could not save your password. Please try again.");
+    } finally {
+      setPasswordLoading(false);
     }
   }
 
@@ -291,11 +365,21 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
         </form> : <form className="phone-change-form" onSubmit={verifyNewPhone}>
           <p className="auth-help">Enter the 4-digit code sent to {newPhone}.</p>
           <label className="auth-field">Verification code<input type="text" inputMode="numeric" autoComplete="one-time-code" value={phoneCode} onChange={(event) => setPhoneCode(event.target.value.replace(/\D/g, "").slice(0, 4))} maxLength={4} required /></label>
-          <button className="button button-outline" type="button" onClick={resendPhoneCode} disabled={phoneLoading}>{phoneLoading ? "Sending…" : "Resend code"}</button>
+          {phoneResendCount < 2 ? <button className="button button-outline" type="button" onClick={resendPhoneCode} disabled={phoneLoading || phoneResendCooldown > 0}>{phoneLoading ? "Sending…" : phoneResendCooldown > 0 ? `Resend code (${phoneResendCooldown}s)` : "Resend code"}</button> : <p className="auth-help">Maximum resends reached. Request a new code later.</p>}
           <div className="button-row"><button className="button button-primary" type="submit" disabled={phoneLoading || phoneCode.length !== 4}>{phoneLoading ? "Verifying…" : "Verify new number"}</button><button className="button button-outline" type="button" onClick={() => { setPhoneStep("phone"); setPhoneCode(""); setPhoneMessage(""); }}>Change number</button></div>
         </form>)}
         {phoneMessage && <p className="auth-message" role="status">{phoneMessage}</p>}
       </section>
+      {canEdit && <form className="profile-card phone-settings" onSubmit={savePassword}>
+        <div className="phone-settings-heading"><div><p className="eyebrow">Account security</p><h2>{hasPassword ? "Change password" : "Add a password"}</h2></div></div>
+        {!user.phoneNumberVerified && !hasPassword ? <p className="auth-help">Verify a phone number before adding a password to this Google account.</p> : <>
+          {hasPassword && <label className="auth-field">Current password<PasswordInput autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label>}
+          <label className="auth-field">{hasPassword ? "New password" : "Password"}<PasswordInput autoComplete="new-password" minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label>
+          <label className="auth-field">Confirm password<PasswordInput autoComplete="new-password" minLength={8} maxLength={128} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required /></label>
+          {passwordMessage && <p className="auth-message" role="status">{passwordMessage}</p>}
+          <button className="button button-primary" type="submit" disabled={passwordLoading || !newPassword || newPassword !== confirmPassword}>{passwordLoading ? "Saving password…" : hasPassword ? "Change password" : "Add password"}</button>
+        </>}
+      </form>}
       <InventoryManager initialItems={inventory} canEdit={canEdit} />
       <FriendManager canEdit={canEdit} />
       </div>

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { auth } from "@/lib/auth/auth";
 import { requireActiveUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
+import { sendWidgetOtpServer } from "@/lib/auth/sms";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { handleApiError } from "@/lib/api/handle-error";
 import {
   checkRateLimit,
@@ -15,6 +16,9 @@ import {
 const phoneSchema = z.object({ phoneNumber: indianPhoneSchema });
 
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ error: "ORIGIN_NOT_ALLOWED", message: "This verification request is not allowed." }, { status: 403 });
+  }
   let user;
   try {
     user = await requireActiveUser();
@@ -92,5 +96,36 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ success: true, message: "Phone validated." });
+  let sent;
+  try {
+    sent = await sendWidgetOtpServer({ phoneNumber });
+  } catch {
+    return NextResponse.json(
+      { error: "OTP_PROVIDER_UNAVAILABLE", message: "The SMS verification service is temporarily unavailable. Please try again shortly." },
+      { status: 503 },
+    );
+  }
+  if (!sent.success || !sent.reqId) {
+    return NextResponse.json(
+      { error: "OTP_DELIVERY_FAILED", message: sent.error || "Could not send a verification code. Check the number and try again." },
+      { status: 502 },
+    );
+  }
+
+  const identifier = `account-phone-verify:${user.id}`;
+  try {
+    await prisma.verification.deleteMany({ where: { identifier } });
+    await prisma.verification.create({
+      data: {
+        identifier,
+        value: JSON.stringify({ phoneNumber, reqId: sent.reqId, attempts: 0, lastSentAt: Date.now() }),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      },
+    });
+  } catch (error) {
+    console.error("Could not store account phone verification intent after MSG91 accepted the SMS.");
+    return handleApiError(error);
+  }
+
+  return NextResponse.json({ success: true, message: "A 4-digit verification code was sent by SMS." });
 }

@@ -248,7 +248,7 @@ export default function ReportForm({ type }: { type: "LOST" | "FOUND" }) {
       }
       setSubmitted(true);
       setSubmittedReportId(typeof result.report?.id === "string" ? result.report.id : "");
-      setMessage("Your found report was submitted successfully. It will appear on your dashboard while it is reviewed.");
+      setMessage(`Your ${isLost ? "lost" : "found"} report was submitted successfully. It will appear on your dashboard while it is reviewed.`);
     } catch {
       setMessage("We couldn’t reach REVOK. Your details are still on this page; please try again.");
     } finally {

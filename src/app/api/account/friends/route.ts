@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser } from "@/lib/auth/guards";
+import { requireActiveUser, requirePhoneVerified } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
@@ -28,7 +28,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This friend request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const limit = checkRateLimit(hashRateLimitKey("friend-request", user.id), 20, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
     const parsed = requestSchema.safeParse(await request.json());

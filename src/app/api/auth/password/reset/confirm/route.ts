@@ -11,7 +11,7 @@ const resetPasswordConfirmSchema = z.object({
   phoneNumber: indianPhoneSchema,
   resetToken: z.string().min(16),
   otp: z.string().regex(/^\d{4}$/, "Enter a valid 4-digit code."),
-  newPassword: z.string().min(4).max(8),
+  newPassword: z.string().min(8).max(128),
 });
 
 export async function POST(request: Request) {

@@ -53,11 +53,12 @@ export default function RegisterPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [accessToken, setAccessToken] = useState("");
-  const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [widgetReady, setWidgetReady] = useState(false);
   const [message, setMessage] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendCount, setResendCount] = useState(0);
@@ -72,29 +73,41 @@ export default function RegisterPage() {
     const widgetId = process.env.NEXT_PUBLIC_MSG91_WIDGET_ID || "366b67695879383238353332";
     const tokenAuth = process.env.NEXT_PUBLIC_MSG91_TOKEN_AUTH || "";
 
+    if (!tokenAuth.trim()) {
+      return;
+    }
+
     const script = document.createElement("script");
     script.src = "https://verify.msg91.com/otp-provider.js";
     script.async = true;
     script.onload = () => {
       if (window.initSendOTP) {
-        window.initSendOTP({
-          widgetId,
-          tokenAuth,
-          exposeMethods: true,
-          success: (data: unknown) => {
-            const token = extractAccessToken(data);
-            if (token) {
-              setAccessToken(token);
-              setStep("details");
-              setMessage("Phone verified. Complete your account details.");
-            }
-          },
-          failure: (error: unknown) => {
-            console.error("MSG91 OTP failure:", error);
-          },
-        });
+        try {
+          window.initSendOTP({
+            widgetId,
+            tokenAuth,
+            exposeMethods: true,
+            success: (data: unknown) => {
+              const token = extractAccessToken(data);
+              if (token) {
+                setAccessToken(token);
+                setStep("details");
+                setMessage("Phone verified. Complete your account details.");
+              } else {
+                setMessage("MSG91 could not confirm this number. Please verify it again.");
+              }
+            },
+            failure: () => setMessage("MSG91 could not complete phone verification. Check your number and try again."),
+          });
+          setWidgetReady(true);
+        } catch {
+          setMessage("MSG91 could not start phone verification. Refresh the page and try again.");
+        }
+      } else {
+        setMessage("MSG91 phone verification could not initialize. Check the widget configuration and allowed domain.");
       }
     };
+    script.onerror = () => setMessage("Could not load MSG91 phone verification. Check your connection and try again.");
     document.body.appendChild(script);
 
     return () => {
@@ -157,7 +170,7 @@ export default function RegisterPage() {
     setMessage("");
     setGoogleLoading(true);
     try {
-      const result = await authClient.signIn.social({ provider: "google", callbackURL: "/register/complete", fetchOptions: { timeout: 20000 } });
+      const result = await authClient.signIn.social({ provider: "google", callbackURL: "/", fetchOptions: { timeout: 20000 } });
       if (result.error || !result.data?.url || !result.data.redirect) {
         setMessage("Google sign-up is temporarily unavailable. Please try again.");
         setGoogleLoading(false);
@@ -182,6 +195,16 @@ export default function RegisterPage() {
     }
 
     const normalizedPhone = normalizeIndianPhone(phoneNumber);
+    if (!process.env.NEXT_PUBLIC_MSG91_TOKEN_AUTH?.trim()) {
+      setMessage("Phone sign-up is unavailable because the MSG91 browser configuration is missing. Please contact support.");
+      setLoading(false);
+      return;
+    }
+    if (!widgetReady || !window.sendOtp) {
+      setMessage("MSG91 phone verification is still loading or unavailable. Refresh the page and try again.");
+      setLoading(false);
+      return;
+    }
     try {
       const response = await fetch("/api/auth/phone/send-otp", {
         method: "POST",
@@ -197,29 +220,21 @@ export default function RegisterPage() {
       setPhoneNumber(normalizedPhone);
 
       const digits = normalizedPhone.replace(/\D/g, "");
-      if (window.sendOtp) {
-        window.sendOtp(
-          digits.startsWith("91") ? digits : `91${digits}`,
-          () => {
-            setOtp("");
-            setStep("otp");
-            setMessage("4-digit verification code sent.");
-            setLoading(false);
-            startCooldown(30);
-          },
-          (error: unknown) => {
-            const errObj = error as { message?: string } | undefined;
-            setMessage(errObj?.message || "SMS delivery failed. Check the number and try again.");
-            setLoading(false);
-          }
-        );
-      } else {
-        setOtp("");
-        setStep("otp");
-        setMessage("Verification code sent.");
-        setLoading(false);
-        startCooldown(30);
-      }
+      window.sendOtp(
+        digits.startsWith("91") ? digits : `91${digits}`,
+        () => {
+          setOtp("");
+          setStep("otp");
+          setMessage("4-digit verification code sent by SMS.");
+          setLoading(false);
+          startCooldown(30);
+        },
+        (error: unknown) => {
+          const errObj = error as { message?: string } | undefined;
+          setMessage(errObj?.message || "SMS delivery failed. Check the number and try again.");
+          setLoading(false);
+        }
+      );
     } catch {
       setMessage("Could not prepare a verification code. Please try again.");
       setLoading(false);
@@ -235,7 +250,13 @@ export default function RegisterPage() {
     setLoading(true);
     setMessage("");
 
-    if (window.verifyOtp) {
+    if (!widgetReady || !window.verifyOtp) {
+      setMessage("MSG91 phone verification is unavailable. Refresh the page and try again.");
+      setLoading(false);
+      return;
+    }
+
+    {
       window.verifyOtp(
         otp,
         (data: unknown) => {
@@ -255,9 +276,6 @@ export default function RegisterPage() {
           setLoading(false);
         }
       );
-    } else {
-      setMessage("Verification service is initializing. Please wait.");
-      setLoading(false);
     }
   }
 
@@ -266,7 +284,7 @@ export default function RegisterPage() {
     setLoading(true);
     setMessage("");
 
-    if (window.retryOtp) {
+    if (widgetReady && window.retryOtp) {
       window.retryOtp(
         null,
         () => {
@@ -283,6 +301,7 @@ export default function RegisterPage() {
         }
       );
     } else {
+      setMessage("MSG91 phone verification is unavailable. Refresh the page and try again.");
       setLoading(false);
     }
   }
@@ -294,13 +313,18 @@ export default function RegisterPage() {
 
     const parsedUsername = usernameSchema.safeParse(username.trim());
     if (!parsedUsername.success) {
-      setMessage("Use 3–8 letters, numbers, underscores, or @.");
+      setMessage("Use 4–8 letters, numbers, underscores, or @.");
       setLoading(false);
       return;
     }
 
-    if (password.length < 4 || password.length > 8) {
-      setMessage("Password must be between 4 and 8 characters.");
+    if (password.length < 8 || password.length > 128) {
+      setMessage("Password must be between 8 and 128 characters.");
+      setLoading(false);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMessage("Passwords do not match.");
       setLoading(false);
       return;
     }
@@ -312,7 +336,7 @@ export default function RegisterPage() {
         body: JSON.stringify({
           phoneNumber,
           accessToken,
-          name: name.trim(),
+          name: parsedUsername.data,
           username: parsedUsername.data,
           password,
         }),
@@ -477,27 +501,13 @@ export default function RegisterPage() {
 
           {step === "details" && (
             <form className="auth-form" onSubmit={finishSignup}>
-              <label className="auth-field" htmlFor="register-name">
-                Full name
-                <input
-                  id="register-name"
-                  type="text"
-                  autoComplete="name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Your name"
-                  minLength={2}
-                  maxLength={100}
-                  required
-                />
-              </label>
               <label className="auth-field" htmlFor="register-username">
                 Username
                 <input
                   id="register-username"
                   type="text"
                   autoComplete="username"
-                  minLength={3}
+                  minLength={4}
                   maxLength={8}
                   value={username}
                   onChange={(event) => {
@@ -508,14 +518,14 @@ export default function RegisterPage() {
                       setUsernameAvailability("");
                       setUsernameAvailabilityState("idle");
                     } else if (!usernameSchema.safeParse(candidate).success) {
-                      setUsernameAvailability("Use 3–8 letters, numbers, underscores, or @.");
+                      setUsernameAvailability("Use 4–8 letters, numbers, underscores, or @.");
                       setUsernameAvailabilityState("invalid");
                     } else {
                       setUsernameAvailability("Checking availability...");
                       setUsernameAvailabilityState("checking");
                     }
                   }}
-                  placeholder="3-8 characters"
+                  placeholder="4-8 characters"
                   required
                 />
               </label>
@@ -537,21 +547,35 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="4 to 8 characters"
-                  minLength={4}
-                  maxLength={8}
+                  placeholder="8 to 128 characters"
+                  minLength={8}
+                  maxLength={128}
                   required
                 />
               </label>
+              <label className="auth-field" htmlFor="register-confirm-password">
+                Confirm password
+                <PasswordInput
+                  id="register-confirm-password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Enter your password again"
+                  minLength={8}
+                  maxLength={128}
+                  required
+                />
+              </label>
+              <p className="auth-help username-lock-note">Your username cannot be changed later. Choose carefully.</p>
               <button
                 className="auth-submit"
                 type="submit"
                 disabled={
                   loading ||
-                  !name.trim() ||
                   !usernameSchema.safeParse(username.trim()).success ||
-                  password.length < 4 ||
-                  password.length > 8 ||
+                  password.length < 8 ||
+                  password.length > 128 ||
+                  password !== confirmPassword ||
                   usernameAvailabilityState === "checking" ||
                   usernameAvailabilityState === "taken"
                 }

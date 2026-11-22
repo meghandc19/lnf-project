@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser } from "@/lib/auth/guards";
+import { requirePhoneVerified } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
@@ -12,7 +12,7 @@ const schema = z.object({ code: z.string().trim().regex(/^[A-Fa-f0-9]{16}$/) }).
 export async function POST(request: Request, { params }: { params: Promise<{ claimId: string }> }) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const limit = checkRateLimit(hashRateLimitKey("claim-recovery", user.id), 10, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
     const input = schema.safeParse(await request.json());

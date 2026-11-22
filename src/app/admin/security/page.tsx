@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import SiteFooter from "@/components/site/SiteFooter";
 import SiteHeader from "@/components/site/SiteHeader";
 import styles from "../AdminPages.module.css";
-import { getOtpProviderConfig } from "@/lib/auth/sms";
+import { getMsg91WidgetId, getOtpProviderConfig } from "@/lib/auth/sms";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,11 @@ const enabled = (value: string | undefined) => Boolean(value?.trim());
 export default async function AdminSecurityPage() {
   await requireAdmin();
   const otp = getOtpProviderConfig();
+  const msg91ServerWidgetConfigured = Boolean(process.env.MSG91_AUTH_KEY?.trim() && getMsg91WidgetId());
+  const msg91BrowserWidgetConfigured = Boolean(
+    (process.env.NEXT_PUBLIC_MSG91_WIDGET_ID?.trim() || "366b67695879383238353332") &&
+    process.env.NEXT_PUBLIC_MSG91_TOKEN_AUTH?.trim(),
+  );
   const production = process.env.NODE_ENV === "production";
   let databaseReachable = false;
   let rateLimitTablePresent = false;
@@ -54,8 +59,9 @@ export default async function AdminSecurityPage() {
     <p className="page-intro">Server-side configuration status for REVOK. Secret values are never included on this page.</p>
     <section className="admin-content-panel" aria-labelledby="otp-status"><p className="eyebrow">Phone verification</p><h2 id="otp-status">OTP provider: MSG91</h2>
       <dl className="admin-status-list">
-        <div><dt>Configuration</dt><dd>{otp.configured ? "Configured" : "Not configured"}</dd></div>
-        <div><dt>OTP delivery</dt><dd>{otp.enabled ? "Enabled" : "Disabled"}</dd></div>
+        <div><dt>Server-side MSG91 widget</dt><dd>{msg91ServerWidgetConfigured ? "Configured" : "Missing AuthKey"}</dd></div>
+        <div><dt>Browser MSG91 widget</dt><dd>{msg91BrowserWidgetConfigured ? "Configured" : "Missing public widget configuration"}</dd></div>
+        <div><dt>Legacy Better Auth OTP</dt><dd>{otp.enabled ? "Enabled" : "Disabled or incomplete"}</dd></div>
         <div><dt>Template ID</dt><dd>{process.env.MSG91_OTP_TEMPLATE_ID?.trim() ? "Present (value hidden)" : "Missing"}</dd></div>
         <div><dt>OTP length and expiry</dt><dd>{otp.otpLength} digits · {otp.otpExpiryMinutes} minute(s)</dd></div>
         <div><dt>Resend cooldown</dt><dd>60 seconds · maximum 3 sends per hour per phone</dd></div>
@@ -63,6 +69,6 @@ export default async function AdminSecurityPage() {
       </dl>
     </section>
     <section className="admin-content-panel" aria-labelledby="environment-status"><p className="eyebrow">Environment checklist</p><h2 id="environment-status">Production checks</h2><div className="admin-review-list">{checks.map((check) => <article key={check.label}><div className="admin-section-heading"><strong>{check.label}</strong><span className={`status-chip ${check.state}`}>{label(check.state)}</span></div><p>{check.detail}</p></article>)}</div></section>
-    <section className="admin-content-panel"><p className="eyebrow">MSG91 configuration</p><p>Set <code>MSG91_AUTH_KEY</code>, <code>MSG91_OTP_TEMPLATE_ID</code>, <code>MSG91_OTP_LENGTH</code>, <code>MSG91_OTP_EXPIRY_MINUTES</code>, and <code>MSG91_ENABLED</code> in the hosting environment. Keep the Auth Key private. Configure the template to send the provided OTP value.</p></section>
+    <section className="admin-content-panel"><p className="eyebrow">MSG91 configuration</p><p>Set <code>MSG91_AUTH_KEY</code> in the hosting environment for server-side widget verification. Phone registration also requires <code>NEXT_PUBLIC_MSG91_TOKEN_AUTH</code>; the public token is included in the browser build. <code>NEXT_PUBLIC_MSG91_WIDGET_ID</code> is an optional override when using a widget other than the existing REVOK widget. <code>MSG91_OTP_TEMPLATE_ID</code> and <code>MSG91_ENABLED</code> are used only by Better Auth&apos;s legacy OTP provider. Keep the Auth Key private. Configure the MSG91 widget to send SMS with exactly four digits.</p></section>
   </main><SiteFooter /></div>;
 }

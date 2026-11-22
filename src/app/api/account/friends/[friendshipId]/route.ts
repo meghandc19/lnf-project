@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/handle-error";
-import { requireActiveUser } from "@/lib/auth/guards";
+import { requirePhoneVerified } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { checkRateLimit, hashRateLimitKey, rateLimitResponse } from "@/lib/security/rate-limit";
@@ -10,7 +10,7 @@ const actionSchema = z.object({ action: z.enum(["accept", "reject", "cancel"]) }
 export async function PATCH(request: Request, { params }: { params: Promise<{ friendshipId: string }> }) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This friend request is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const limit = checkRateLimit(hashRateLimitKey("friend-decision", user.id), 40, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
     const parsed = actionSchema.safeParse(await request.json());
@@ -38,7 +38,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ fr
 export async function DELETE(request: Request, { params }: { params: Promise<{ friendshipId: string }> }) {
   try {
     if (!isSameOriginRequest(request)) return Response.json({ message: "This friend action is not allowed." }, { status: 403 });
-    const user = await requireActiveUser();
+    const user = await requirePhoneVerified();
     const limit = checkRateLimit(hashRateLimitKey("friend-remove", user.id), 30, 60 * 60 * 1000);
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);
     const { friendshipId } = await params;
