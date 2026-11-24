@@ -511,7 +511,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .home-intro-overlay { position: fixed; z-index: 2147483000; inset: 0; overflow: hidden; background: #fff; opacity: 1; transition: opacity 240ms ease; }
 .home-intro-overlay.is-fading { opacity: 0; pointer-events: none; }
-.home-intro-logo { position: absolute; top: 50%; left: 50%; display: block; width: min(58vw, 260px); height: min(58vw, 260px); object-fit: contain; transform: translate(-50%, -50%); transition: left 3.3s cubic-bezier(.55, 0, .2, 1), top 3.3s cubic-bezier(.55, 0, .2, 1), width 3.3s cubic-bezier(.55, 0, .2, 1), height 3.3s cubic-bezier(.55, 0, .2, 1), transform 3.3s cubic-bezier(.55, 0, .2, 1); }
+.home-intro-logo { position: absolute; top: 50%; left: 50%; display: block; width: min(72vw, 360px); height: min(72vw, 360px); object-fit: contain; transform: translate(-50%, -50%); transition: left 3.3s cubic-bezier(.55, 0, .2, 1), top 3.3s cubic-bezier(.55, 0, .2, 1), width 3.3s cubic-bezier(.55, 0, .2, 1), height 3.3s cubic-bezier(.55, 0, .2, 1), transform 3.3s cubic-bezier(.55, 0, .2, 1); }
 .home-intro-overlay.is-moving .home-intro-logo { top: var(--intro-top); left: var(--intro-left); width: var(--intro-width); height: var(--intro-height); transform: none; }
 .home-intro-skip { position: absolute; z-index: 1; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); min-height: 44px; padding: 0 17px; border: 1px solid #dce8df; border-radius: 999px; background: #087c48; color: #fff; font: inherit; font-size: 14px; font-weight: 750; box-shadow: 0 4px 18px rgb(0 0 0 / 12%); cursor: pointer; }
 .home-intro-skip:focus-visible { outline: 3px solid #70a98c; outline-offset: 3px; }

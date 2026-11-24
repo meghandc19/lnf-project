@@ -80,8 +80,8 @@ export default function HomeIntro() {
       <Image
         src="/img/revok-logo.png"
         alt=""
-        width={260}
-        height={260}
+        width={360}
+        height={360}
         priority
         className="home-intro-logo"
         style={logoStyle}
