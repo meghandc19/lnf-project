@@ -5,6 +5,7 @@ import {
   sendWidgetOtpServer,
   verifyWidgetOtpServer,
   retryWidgetOtpServer,
+  verifyWidgetAccessToken,
 } from "./sms.ts";
 import { indianPhoneSchema } from "../validation/common.ts";
 
@@ -173,6 +174,75 @@ test("provider failure and timeout fails closed safely", async () => {
     if (previousAuthKey === undefined) delete process.env.MSG91_AUTH_KEY;
     else process.env.MSG91_AUTH_KEY = previousAuthKey;
   }
+});
+
+test("verifyWidgetAccessToken: validates Indian mobile response and rejects errors or non-Indian numbers", async () => {
+  const previousAuthKey = process.env.MSG91_AUTH_KEY;
+  const originalFetch = globalThis.fetch;
+  process.env.MSG91_AUTH_KEY = "test-auth-key";
+
+  try {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ type: "success", message: "919876543210" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    const valid = await verifyWidgetAccessToken("eyJhbGciOiJIUzI1NiJ9.test.sig");
+    assert.deepEqual(valid, { success: true, mobile: "9876543210" });
+
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ type: "error", message: "Invalid access token" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    const invalid = await verifyWidgetAccessToken("eyJhbGciOiJIUzI1NiJ9.bad.sig");
+    assert.equal(invalid.success, false);
+
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ type: "success", message: "14155552671" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    const nonIndian = await verifyWidgetAccessToken("eyJhbGciOiJIUzI1NiJ9.us.sig");
+    assert.equal(nonIndian.success, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousAuthKey === undefined) delete process.env.MSG91_AUTH_KEY;
+    else process.env.MSG91_AUTH_KEY = previousAuthKey;
+  }
+});
+
+test("password reset requires otpVerified intent before confirming new password", () => {
+  const now = Date.now();
+
+  function canConfirmReset(intents, submittedToken) {
+    for (const item of intents) {
+      if (item.expiresAt.getTime() <= now) continue;
+      try {
+        const data = JSON.parse(item.value);
+        if (data.resetToken === submittedToken) {
+          return data.otpVerified === true;
+        }
+      } catch {
+        // Ignored
+      }
+    }
+    return false;
+  }
+
+  const unverifiedIntent = {
+    id: "int_unverified",
+    value: JSON.stringify({ resetToken: "token_unverified", otpVerified: false }),
+    expiresAt: new Date(now + 60_000),
+  };
+  assert.equal(canConfirmReset([unverifiedIntent], "token_unverified"), false);
+
+  const verifiedIntent = {
+    id: "int_verified",
+    value: JSON.stringify({ resetToken: "token_verified", otpVerified: true }),
+    expiresAt: new Date(now + 60_000),
+  };
+  assert.equal(canConfirmReset([verifiedIntent], "token_verified"), true);
 });
 
 test("password-reset confirmation schema rejects signup widget tokens and requires 4-digit numeric OTP", () => {

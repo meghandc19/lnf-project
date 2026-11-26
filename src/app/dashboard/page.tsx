@@ -54,7 +54,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
     <section className="dashboard-user-header" aria-label="Your account details">
       {user.image ? <Image className="dashboard-user-avatar" src={user.image} width={58} height={58} alt="" unoptimized referrerPolicy="no-referrer" /> : <span className="dashboard-user-avatar dashboard-user-avatar-placeholder" aria-hidden="true">{user.name.slice(0, 1).toUpperCase()}</span>}
       <div className="dashboard-user-copy"><p className="eyebrow">Your REVOK space</p><h1>{user.name}</h1><span>{user.username ? `@${user.username}` : "Username not set"}</span><span>{user.phoneNumber || "Phone number not added"}{user.phoneNumberVerified ? " · Verified" : ""}</span></div>
-      <span className={`status-chip${user.status === "ACTIVE" ? " dashboard-active-chip" : ""}`}>{user.status === "ACTIVE" ? "Active" : "Restricted"}</span><LogoutButton />
+      <span className={`status-chip${user.status === "ACTIVE" ? " dashboard-active-chip" : ""}`}>{user.status === "ACTIVE" ? "Active" : "Restricted"}</span>{user.status === "ACTIVE" && <Link className="button button-outline" href="/profile#phone-settings-heading">{user.phoneNumber ? "Change phone number" : "Verify phone number"}</Link>}<LogoutButton />
     </section>
     {user.status === "RESTRICTED" && <div className="notice-card" role="status"><strong>Browsing access</strong><p>Your account is restricted. You can browse available information, but protected actions are disabled.</p></div>}
     <section className="dashboard-stats" aria-label="Your account activity">

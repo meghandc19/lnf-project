@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   }
 
   const phoneNumber = normalizeIndianPhone(parsed.data);
-  const cooldown = checkRateLimit(hashRateLimitKey("otp-send-cooldown", phoneNumber), 1, 60 * 1000);
+  const cooldown = checkRateLimit(hashRateLimitKey("otp-send-cooldown", phoneNumber), 1, 30 * 1000);
   if (!cooldown.allowed) return rateLimitResponse(cooldown.retryAfterMs);
   const limit = checkRateLimit(hashRateLimitKey("signup-send-otp-phone", phoneNumber), 3, 60 * 60 * 1000);
   if (!limit.allowed) return rateLimitResponse(limit.retryAfterMs);

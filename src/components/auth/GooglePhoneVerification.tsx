@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useMsg91OtpWidget } from "@/lib/auth/use-msg91-widget";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 
 export default function GooglePhoneVerification({ initialPhone }: { initialPhone: string }) {
@@ -14,6 +15,9 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendCount, setResendCount] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { isConfigured, widgetReady, sendWidgetOtp, verifyWidgetOtp, retryWidgetOtp } =
+    useMsg91OtpWidget({ onInitError: setMessage });
 
   useEffect(() => () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -41,6 +45,15 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
       setMessage("Enter a valid 10-digit Indian mobile number.");
       return;
     }
+    if (!isConfigured) {
+      setMessage("Phone verification is unavailable because the MSG91 browser configuration is missing. Please contact support.");
+      return;
+    }
+    if (!widgetReady) {
+      setMessage("MSG91 phone verification is still loading or unavailable. Refresh the page and try again.");
+      return;
+    }
+
     setLoading(true);
     const normalizedPhone = normalizeIndianPhone(phone);
 
@@ -56,9 +69,17 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
         return;
       }
 
+      const sendResult = await sendWidgetOtp(normalizedPhone);
+      if (!sendResult.ok) {
+        setMessage(sendResult.error);
+        return;
+      }
+
       setPhone(normalizedPhone);
+      setCode("");
+      setResendCount(0);
       setStep("otp");
-      setMessage(result.message ?? "A 4-digit verification code was sent by SMS.");
+      setMessage("4-digit verification code sent by SMS.");
       startCooldown(30);
     } catch {
       setMessage("Could not connect to the verification service. Please try again.");
@@ -77,10 +98,16 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
     setLoading(true);
 
     try {
+      const widgetResult = await verifyWidgetOtp(code);
+      if (!widgetResult.ok) {
+        setMessage(widgetResult.error);
+        return;
+      }
+
       const response = await fetch("/api/account/phone/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: phone, code }),
+        body: JSON.stringify({ phoneNumber: phone, accessToken: widgetResult.accessToken }),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -95,29 +122,25 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
     }
   }
 
-  function resendOtp() {
+  async function resendOtp() {
     if (resendCooldown > 0 || resendCount >= 2) return;
     setLoading(true);
     setMessage("");
-    void fetch("/api/account/phone/send-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phoneNumber: phone }),
-    }).then(async (response) => {
-      const result = await response.json();
-      if (!response.ok) {
-        setMessage(result.message ?? "Could not resend the code. Please try again later.");
+    try {
+      const retryResult = await retryWidgetOtp(null);
+      if (!retryResult.ok) {
+        setMessage(retryResult.error);
         return;
       }
       setResendCount((prev) => prev + 1);
       setCode("");
-      setMessage(result.message ?? "A new 4-digit code was sent.");
+      setMessage("A new 4-digit code was sent.");
       startCooldown(30);
-    }).catch(() => {
+    } catch {
       setMessage("Could not resend the code. Please try again later.");
-    }).finally(() => {
+    } finally {
       setLoading(false);
-    });
+    }
   }
 
   return (
@@ -174,7 +197,7 @@ export default function GooglePhoneVerification({ initialPhone }: { initialPhone
               onClick={resendOtp}
               disabled={loading || resendCooldown > 0}
             >
-          {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : "Resend code"}
+              {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : "Resend code"}
             </button>
           ) : (
             <p className="auth-help" style={{ color: "#8a4b4b" }}>Maximum resends reached. Please try again later.</p>

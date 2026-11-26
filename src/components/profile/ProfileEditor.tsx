@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { authClient } from "@/lib/auth-client";
+import { useMsg91OtpWidget } from "@/lib/auth/use-msg91-widget";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 import InventoryManager, { type InventoryEntry } from "@/components/profile/InventoryManager";
@@ -22,6 +23,7 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
   const [removingPhoto, setRemovingPhoto] = useState(false);
   const [photoActionsOpen, setPhotoActionsOpen] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber ?? "");
+  const [phoneVerified, setPhoneVerified] = useState(user.phoneNumberVerified);
   const [newPhone, setNewPhone] = useState("");
   const [phoneCode, setPhoneCode] = useState("");
   const [changingPhone, setChangingPhone] = useState(false);
@@ -31,6 +33,14 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
   const [phoneResendCooldown, setPhoneResendCooldown] = useState(0);
   const [phoneResendCount, setPhoneResendCount] = useState(0);
   const phoneTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const {
+    isConfigured: otpConfigured,
+    widgetReady: otpWidgetReady,
+    sendWidgetOtp,
+    verifyWidgetOtp,
+    retryWidgetOtp,
+  } = useMsg91OtpWidget({ onInitError: setPhoneMessage });
   const [linkingGoogle, setLinkingGoogle] = useState(false);
   const [googleMessage, setGoogleMessage] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -134,6 +144,15 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
       setPhoneMessage("Enter a valid 10-digit Indian mobile number.");
       return;
     }
+    if (!otpConfigured) {
+      setPhoneMessage("Phone verification is unavailable because the MSG91 browser configuration is missing. Please contact support.");
+      return;
+    }
+    if (!otpWidgetReady) {
+      setPhoneMessage("MSG91 phone verification is still loading or unavailable. Refresh the page and try again.");
+      return;
+    }
+
     setPhoneLoading(true);
     const normalizedPhone = normalizeIndianPhone(newPhone);
     try {
@@ -146,11 +165,19 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
         setPhoneMessage(result.message ?? result.error ?? "Could not send a verification code.");
         return;
       }
+
+      const sendResult = await sendWidgetOtp(normalizedPhone);
+      if (!sendResult.ok) {
+        setPhoneMessage(sendResult.error);
+        return;
+      }
+
       setNewPhone(normalizedPhone);
+      setPhoneCode("");
       setPhoneStep("otp");
-      setPhoneMessage(result.message ?? "Verification code sent.");
+      setPhoneMessage("4-digit verification code sent by SMS.");
       setPhoneResendCount(0);
-      startPhoneResendCooldown();
+      startPhoneResendCooldown(30);
     } catch {
       setPhoneMessage("Could not send a verification code. Please try again.");
     } finally {
@@ -160,12 +187,22 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
 
   async function verifyNewPhone(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (phoneCode.length !== 4) {
+      setPhoneMessage("Enter the 4-digit verification code.");
+      return;
+    }
     setPhoneLoading(true);
     setPhoneMessage("");
     try {
+      const widgetResult = await verifyWidgetOtp(phoneCode);
+      if (!widgetResult.ok) {
+        setPhoneMessage(widgetResult.error);
+        return;
+      }
+
       const response = await fetch("/api/account/phone/verify", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: newPhone, code: phoneCode }),
+        body: JSON.stringify({ phoneNumber: newPhone, accessToken: widgetResult.accessToken }),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -173,6 +210,7 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
         return;
       }
       setPhoneNumber(newPhone);
+      setPhoneVerified(true);
       setChangingPhone(false);
       setPhoneStep("phone");
       setPhoneCode("");
@@ -187,19 +225,19 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
   }
 
   async function resendPhoneCode() {
+    if (phoneResendCooldown > 0 || phoneResendCount >= 2) return;
     setPhoneLoading(true);
     setPhoneMessage("");
     try {
-      const response = await fetch("/api/account/phone/send-otp", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: newPhone }),
-      });
-      const result = await response.json();
-      if (!response.ok) { setPhoneMessage(result.message ?? "Could not resend the code. Please try again later."); return; }
+      const retryResult = await retryWidgetOtp(null);
+      if (!retryResult.ok) {
+        setPhoneMessage(retryResult.error);
+        return;
+      }
       setPhoneCode("");
-      setPhoneMessage("A new verification code was sent.");
+      setPhoneMessage("A new 4-digit verification code was sent.");
       setPhoneResendCount((count) => count + 1);
-      startPhoneResendCooldown();
+      startPhoneResendCooldown(30);
     } catch {
       setPhoneMessage("Could not resend the code. Please try again later.");
     } finally { setPhoneLoading(false); }
@@ -355,9 +393,9 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
         {canEdit && <button className="auth-submit" type="submit" disabled={saving}>{saving ? "Saving…" : "Save profile"}</button>}
       </form>
       <section className="profile-card phone-settings" aria-labelledby="phone-settings-heading">
-        <div className="phone-settings-heading"><div><p className="eyebrow">Account security</p><h2 id="phone-settings-heading">Phone number</h2></div><span className={user.phoneNumberVerified ? "verified-chip" : "status-chip"}>{user.phoneNumberVerified ? "Verified" : "Not verified"}</span></div>
+        <div className="phone-settings-heading"><div><p className="eyebrow">Account security</p><h2 id="phone-settings-heading">Phone number</h2></div><span className={phoneVerified ? "verified-chip" : "status-chip"}>{phoneVerified ? "Verified" : "Not verified"}</span></div>
         <p className="profile-phone-current">{phoneNumber || "No phone number added"}</p>
-        {canEdit && !changingPhone && <button className="button button-outline" type="button" onClick={() => { setChangingPhone(true); setPhoneStep("phone"); setPhoneMessage(""); }}>Change phone number</button>}
+        {canEdit && !changingPhone && <button className="button button-outline" type="button" onClick={() => { setChangingPhone(true); setPhoneStep("phone"); setPhoneMessage(""); }}>{phoneNumber ? "Change phone number" : "Add phone number"}</button>}
         {canEdit && changingPhone && (phoneStep === "phone" ? <form className="phone-change-form" onSubmit={sendPhoneCode}>
           <label className="auth-field">New phone number<input type="tel" inputMode="tel" autoComplete="tel" value={newPhone} onChange={(event) => setNewPhone(event.target.value)} placeholder="98765 43210" required /></label>
           <p className="auth-help">Your current number stays on the account until you verify the new one.</p>
@@ -372,7 +410,7 @@ export default function ProfileEditor({ user, inventory, canEdit, hasGoogleAuth 
       </section>
       {canEdit && <form className="profile-card phone-settings" onSubmit={savePassword}>
         <div className="phone-settings-heading"><div><p className="eyebrow">Account security</p><h2>{hasPassword ? "Change password" : "Add a password"}</h2></div></div>
-        {!user.phoneNumberVerified && !hasPassword ? <p className="auth-help">Verify a phone number before adding a password to this Google account.</p> : <>
+        {!phoneVerified && !hasPassword ? <p className="auth-help">Verify a phone number before adding a password to this Google account.</p> : <>
           {hasPassword && <label className="auth-field">Current password<PasswordInput autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label>}
           <label className="auth-field">{hasPassword ? "New password" : "Password"}<PasswordInput autoComplete="new-password" minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label>
           <label className="auth-field">Confirm password<PasswordInput autoComplete="new-password" minLength={8} maxLength={128} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required /></label>

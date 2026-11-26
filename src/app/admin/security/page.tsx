@@ -64,7 +64,7 @@ export default async function AdminSecurityPage() {
         <div><dt>Legacy Better Auth OTP</dt><dd>{otp.enabled ? "Enabled" : "Disabled or incomplete"}</dd></div>
         <div><dt>Template ID</dt><dd>{process.env.MSG91_OTP_TEMPLATE_ID?.trim() ? "Present (value hidden)" : "Missing"}</dd></div>
         <div><dt>OTP length and expiry</dt><dd>{otp.otpLength} digits · {otp.otpExpiryMinutes} minute(s)</dd></div>
-        <div><dt>Resend cooldown</dt><dd>60 seconds · maximum 3 sends per hour per phone</dd></div>
+        <div><dt>Resend cooldown</dt><dd>30 seconds · maximum 3 sends per hour per phone</dd></div>
         <div><dt>Verification attempts</dt><dd>Up to 3 attempts per issued code; Better Auth limits requests to 5 per 15 minutes</dd></div>
       </dl>
     </section>

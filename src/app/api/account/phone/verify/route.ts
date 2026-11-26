@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireActiveUser } from "@/lib/auth/guards";
 import { handleApiError } from "@/lib/api/handle-error";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
-import { verifyWidgetOtpServer } from "@/lib/auth/sms";
+import { verifyWidgetAccessToken } from "@/lib/auth/sms";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 import {
   checkRateLimit,
@@ -15,9 +15,8 @@ import {
 
 const verifySchema = z.object({
   phoneNumber: indianPhoneSchema,
-  code: z.string().regex(/^\d{4}$/, "Enter the 4-digit verification code."),
+  accessToken: z.string().min(10),
 });
-type PhoneVerificationIntent = { phoneNumber?: string; reqId?: string; attempts?: number };
 
 export async function POST(request: Request) {
   if (!isSameOriginRequest(request)) {
@@ -47,13 +46,14 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: "INVALID_VERIFICATION_REQUEST",
-        message: "Enter a valid Indian mobile number and 4-digit verification code.",
+        message: "Enter a valid Indian mobile number and verification token.",
       },
       { status: 400 },
     );
   }
 
   const normalizedPhone = normalizeIndianPhone(result.data.phoneNumber);
+  const { accessToken } = result.data;
 
   const phoneLimit = checkRateLimit(
     hashRateLimitKey("account-verify-otp-phone", normalizedPhone),
@@ -69,69 +69,68 @@ export async function POST(request: Request) {
   );
   if (!userLimit.allowed) return rateLimitResponse(userLimit.retryAfterMs);
 
+  const phoneVariants = [normalizedPhone, `+91${normalizedPhone}`];
+  if (user.phoneNumberVerified && phoneVariants.includes(user.phoneNumber ?? "")) {
+    return NextResponse.json(
+      { error: "PHONE_ALREADY_VERIFIED", message: "This phone number is already verified on your account." },
+      { status: 400 },
+    );
+  }
+
   try {
-    const identifier = `account-phone-verify:${user.id}`;
-    const intent = await prisma.verification.findFirst({
-      where: { identifier, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
+    const tokenHash = hashRateLimitKey("msg91-token", accessToken);
+    const tokenAlreadyUsed = await prisma.rateLimit.findUnique({
+      where: { key: `msg91-token:${tokenHash}` },
     });
-    let intentData: PhoneVerificationIntent | null = null;
-    try {
-      intentData = intent ? JSON.parse(intent.value) as PhoneVerificationIntent : null;
-    } catch {
-      intentData = null;
-    }
-    if (!intent || !intentData?.reqId || intentData.phoneNumber !== normalizedPhone) {
+    if (tokenAlreadyUsed) {
       return NextResponse.json(
         {
-          error: "VERIFICATION_EXPIRED",
-          message: "This verification request has expired. Please request a new code.",
+          error: "TOKEN_ALREADY_USED",
+          message: "This verification token has already been consumed. Please verify again.",
         },
         { status: 400 },
       );
     }
 
-    const attempts = typeof intentData.attempts === "number" ? intentData.attempts : 0;
-    if (attempts >= 3) {
+    const tokenResult = await verifyWidgetAccessToken(accessToken);
+    if (!tokenResult.success || !tokenResult.mobile) {
       return NextResponse.json(
         {
-          error: "MAX_ATTEMPTS_EXCEEDED",
-          message: "Too many incorrect codes. Request a new verification code and try again.",
+          error: "INVALID_TOKEN",
+          message: tokenResult.error || "Phone verification failed or expired. Please verify again.",
         },
-        { status: 429 },
+        { status: 400 },
       );
     }
 
-    let verifyResult: Awaited<ReturnType<typeof verifyWidgetOtpServer>>;
-    try {
-      verifyResult = await verifyWidgetOtpServer({ otp: result.data.code, reqId: intentData.reqId });
-    } catch {
-      return NextResponse.json(
-        { error: "OTP_PROVIDER_UNAVAILABLE", message: "The SMS verification service is temporarily unavailable. Please try again shortly." },
-        { status: 503 },
-      );
-    }
-    if (!verifyResult.success) {
-      await prisma.verification.update({
-        where: { id: intent.id },
-        data: { value: JSON.stringify({ ...intentData, attempts: attempts + 1 }) },
-      });
+    const tokenDigits = tokenResult.mobile.replace(/\D/g, "");
+    const expectedDigits = normalizedPhone.replace(/\D/g, "");
+    if (!tokenDigits.endsWith(expectedDigits.slice(-10))) {
       return NextResponse.json(
         {
-          error: "INVALID_OTP",
-          message: verifyResult.error || "That code is incorrect or expired. Check it and try again.",
+          error: "PHONE_MISMATCH",
+          message: "The verified phone number does not match the phone number provided.",
         },
         { status: 400 },
       );
     }
 
     await prisma.$transaction(async (tx) => {
-      const consumed = await tx.verification.deleteMany({ where: { id: intent.id, identifier } });
-      if (consumed.count !== 1) throw new Error("PHONE_VERIFICATION_ALREADY_USED");
+      await tx.rateLimit.create({
+        data: {
+          key: `msg91-token:${tokenHash}`,
+          count: 1,
+          lastRequest: BigInt(Date.now()),
+        },
+      });
+
+      await tx.verification.deleteMany({
+        where: { identifier: `account-phone-verify:${user.id}` },
+      });
 
       const linkedAccount = await tx.user.findFirst({
         where: {
-          phoneNumber: { in: [normalizedPhone, `+91${normalizedPhone}`] },
+          phoneNumber: { in: phoneVariants },
           id: { not: user.id },
         },
         select: { id: true },
@@ -156,10 +155,18 @@ export async function POST(request: Request) {
       message: "Phone number verified successfully.",
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "PHONE_VERIFICATION_ALREADY_USED") {
-      return NextResponse.json({ error: "VERIFICATION_ALREADY_USED", message: "This code has already been used. Request a new code." }, { status: 409 });
-    }
     if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      const target = (error as { meta?: { target?: string[] | string } }).meta?.target;
+      const isTokenCollision = Array.isArray(target) ? target.includes("key") : target === "key";
+      if (isTokenCollision) {
+        return NextResponse.json(
+          {
+            error: "TOKEN_ALREADY_USED",
+            message: "This verification token has already been consumed. Please verify again.",
+          },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(
         {
           error: "PHONE_NUMBER_IN_USE",

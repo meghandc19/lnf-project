@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { PasswordInput } from "@/components/auth/PasswordInput";
+import { useMsg91OtpWidget } from "@/lib/auth/use-msg91-widget";
 import { indianPhoneSchema, normalizeIndianPhone } from "@/lib/validation/common";
 import styles from "../AuthPages.module.css";
 
@@ -23,6 +24,9 @@ export default function ForgotPasswordPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendCount, setResendCount] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { isConfigured, widgetReady, sendWidgetOtp, verifyWidgetOtp, retryWidgetOtp } =
+    useMsg91OtpWidget({ onInitError: setMessage });
 
   useEffect(() => {
     return () => {
@@ -53,6 +57,15 @@ export default function ForgotPasswordPage() {
       return;
     }
 
+    if (!isConfigured) {
+      setMessage("Password reset is unavailable because the MSG91 browser configuration is missing. Please contact support.");
+      return;
+    }
+    if (!widgetReady) {
+      setMessage("MSG91 phone verification is still loading or unavailable. Refresh the page and try again.");
+      return;
+    }
+
     setLoading(true);
     const normalized = normalizeIndianPhone(phone);
 
@@ -63,19 +76,25 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ phoneNumber: normalized }),
       });
       const result = await response.json();
-      if (!response.ok) {
+      if (!response.ok || !result.resetToken) {
         setMessage(result.message || "Could not request a password reset.");
         setLoading(false);
         return;
       }
 
-      if (result.resetToken) {
-        setResetToken(result.resetToken);
+      const sendResult = await sendWidgetOtp(normalized);
+      if (!sendResult.ok) {
+        setMessage(sendResult.error);
+        setLoading(false);
+        return;
       }
 
+      setResetToken(result.resetToken);
       setPhone(normalized);
+      setOtp("");
+      setResendCount(0);
       setStep("otp");
-      setMessage(result.message || "A 4-digit verification code has been sent.");
+      setMessage("4-digit verification code sent by SMS.");
       startCooldown(30);
     } catch {
       setMessage("Could not connect to the reset service. Please try again.");
@@ -84,14 +103,51 @@ export default function ForgotPasswordPage() {
     }
   }
 
-  function handleProceedToPassword(event: FormEvent<HTMLFormElement>) {
+  async function handleVerifyOtp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
     if (!/^\d{4}$/.test(otp)) {
       setMessage("Enter the 4-digit verification code sent to your phone.");
       return;
     }
-    setStep("password");
+    if (!resetToken) {
+      setMessage("The reset session has expired. Please enter your phone number again.");
+      setStep("phone");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const widgetResult = await verifyWidgetOtp(otp);
+      if (!widgetResult.ok) {
+        setMessage(widgetResult.error);
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/auth/password/reset/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: phone,
+          resetToken,
+          accessToken: widgetResult.accessToken,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setMessage(result.message || "Invalid or expired verification code. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      setStep("password");
+      setMessage("Phone verified. Choose your new password.");
+    } catch {
+      setMessage("Could not verify the code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleResendOtp() {
@@ -100,20 +156,15 @@ export default function ForgotPasswordPage() {
     setMessage("");
 
     try {
-      const response = await fetch("/api/auth/password/reset/retry-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: phone, resetToken }),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        setMessage(result.message || "Could not resend code. Please try again later.");
+      const retryResult = await retryWidgetOtp(null);
+      if (!retryResult.ok) {
+        setMessage(retryResult.error);
         setLoading(false);
         return;
       }
       setResendCount((prev) => prev + 1);
       setOtp("");
-      setMessage(result.message || "A new 4-digit code was sent.");
+      setMessage("A new 4-digit code was sent.");
       startCooldown(30);
     } catch {
       setMessage("Failed to connect to resend service.");
@@ -144,7 +195,6 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({
           phoneNumber: phone,
           resetToken,
-          otp,
           newPassword,
         }),
       });
@@ -152,9 +202,10 @@ export default function ForgotPasswordPage() {
       const result = await response.json();
       if (!response.ok) {
         setMessage(result.message || "Could not reset password. Please try again.");
-        if (result.error === "INVALID_OTP") {
-          // Allow returning to otp step to correct
-          setStep("otp");
+        if (result.error === "OTP_NOT_VERIFIED" || result.error === "INVALID_INTENT") {
+          setStep("phone");
+          setOtp("");
+          setResetToken("");
         }
         setLoading(false);
         return;
@@ -214,13 +265,13 @@ export default function ForgotPasswordPage() {
               </label>
               <p className="auth-help">One reset request allowed per account per 24 hours.</p>
               <button className="auth-submit" type="submit" disabled={loading || !phone}>
-                {loading ? "Checking..." : "Send verification code"}
+                {loading ? "Sending code…" : "Send verification code"}
               </button>
             </form>
           )}
 
           {step === "otp" && (
-            <form className="auth-form" onSubmit={handleProceedToPassword}>
+            <form className="auth-form" onSubmit={handleVerifyOtp}>
               <label className="auth-field" htmlFor="reset-otp">
                 4-Digit verification code
                 <input
@@ -236,7 +287,7 @@ export default function ForgotPasswordPage() {
                 />
               </label>
               <button className="auth-submit" type="submit" disabled={loading || otp.length !== 4}>
-                Continue to set new password
+                {loading ? "Verifying…" : "Verify OTP"}
               </button>
               {resendCount < 2 ? (
                 <button
@@ -304,9 +355,16 @@ export default function ForgotPasswordPage() {
               <button
                 className="button button-outline"
                 type="button"
-                onClick={() => setStep("otp")}
+                onClick={() => {
+                  setStep("phone");
+                  setOtp("");
+                  setResetToken("");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                  setMessage("");
+                }}
               >
-                ← Back to verification code
+                Start over
               </button>
             </form>
           )}

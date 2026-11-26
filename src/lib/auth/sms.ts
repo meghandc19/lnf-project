@@ -6,7 +6,7 @@ export type OtpDeliveryInput = {
 const MSG91_SEND_URL = "https://control.msg91.com/api/v5/otp";
 const MSG91_VERIFY_URL = "https://control.msg91.com/api/v5/otp/verify";
 const DEFAULT_OTP_LENGTH = 4;
-const DEFAULT_OTP_EXPIRY_MINUTES = 5;
+const DEFAULT_OTP_EXPIRY_MINUTES = 15;
 
 export function getOtpProviderConfig() {
   const authKey = process.env.MSG91_AUTH_KEY?.trim() ?? "";
